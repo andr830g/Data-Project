@@ -1,0 +1,16 @@
+Kolonne forklaringer:
+
+
+Price: Elspot Prices
+https://www.energidataservice.dk/tso-electricity/Elspotprices
+
+price_area SYSTEM = reference pris for de nordiske lande
+https://www.nordpoolgroup.com/en/trading/Day-ahead-trading/Price-calculation/
+
+
+Consumption: Consumption per Grid Area
+https://www.energidataservice.dk/tso-electricity/ConsumptionPerGridarea
+
+
+Product distribution: Electricity Balance Non-Validated
+https://www.energidataservice.dk/tso-electricity/ElectricityBalanceNonv

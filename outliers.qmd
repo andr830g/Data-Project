@@ -1,0 +1,65 @@
+---
+title: "Outliers"
+format: html
+---
+
+## Outliers
+
+```{r}
+library(rjson)
+library(ggplot2)
+library(timetk)
+library(corrr)
+library(reticulate)
+library(tidyverse)
+library(tseries)
+library(stats)
+# season
+library(ggfortify)
+```
+
+
+```{r}
+prices <- read.csv2("data/price_df_clean.csv", sep = ",")
+prices %>% 
+  head()
+```
+
+```{r}
+prices %>% 
+    janitor::clean_names() %>% 
+  mutate(
+         hour_utc = lubridate::as_datetime(hour_utc),
+         hour_dk = lubridate::as_datetime(hour_dk),
+         spot_price_dkk = as.numeric(spot_price_dkk))  %>% 
+  select(c(hour_utc, hour_dk,  price_area, spot_price_dkk)) %>% 
+    summarise_by_time(
+    .date_var = hour_utc,
+    .by = "day",
+    value = sum(spot_price_dkk)
+  )    %>% 
+  drop_na() %>% 
+  plot_anomaly_diagnostics(
+    .date_var = hour_utc,
+    .value = value,
+    .interactive = FALSE
+  )
+
+```
+
+```{r}
+prices %>% 
+    janitor::clean_names() %>% 
+  mutate(
+         hour_utc = lubridate::as_datetime(hour_utc),
+         hour_dk = lubridate::as_datetime(hour_dk),
+         spot_price_dkk = as.numeric(spot_price_dkk))  %>% 
+  select(c(hour_utc, hour_dk,  price_area, spot_price_dkk)) %>% 
+  drop_na() %>% 
+  plot_stl_diagnostics(
+    .date_var = hour_utc,
+    .value = spot_price_dkk,
+    .interactive = F
+  )
+```
+

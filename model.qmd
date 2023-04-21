@@ -1,0 +1,442 @@
+---
+title: "Model building"
+format: html
+---
+
+## Libraries
+
+```{r}
+# General packages
+library(tidyverse)
+library(timetk)
+
+# Tradition
+library(forecast)
+
+# Bayesian inference
+library(brms)
+
+# Time series
+library(zoo)
+
+# Modelling framework
+library(modeltime)
+library(tidymodels)
+
+# Python 
+library(reticulate)
+```
+
+```{r}
+pri <- read.csv2("data/price_df_clean.csv", sep = ",") %>% 
+  mutate(
+         hour_utc = lubridate::as_datetime(hour_utc),
+         hour_dk = lubridate::as_datetime(hour_dk),
+         spot_price_dkk = as.numeric(spot_price_dkk))  %>% 
+  select(c(hour_utc, hour_dk,  price_area, spot_price_dkk)) %>% 
+  filter(price_area == "DK1") %>% 
+  rename( date=hour_utc ,   value=spot_price_dkk) %>% 
+  select(date, value)
+
+pri %>% 
+  head()
+```
+
+
+```{r}
+pri %>% 
+  plot_time_series(
+    .date_var = hour_utc,
+    .value = spot_price_dkk
+  )
+```
+
+## Benchmark models
+
+### Freq way Least Square
+
+```{r}
+df <- pri %>% 
+  select(c(hour_utc, spot_price_dkk)) %>% 
+  rename(datetime = hour_utc,
+         value = spot_price_dkk)
+
+# Convert the data to a ts object
+ts_data <- ts(df$value, frequency = 24)
+
+# Fit  model
+arima_model <- auto.arima(ts_data, max.order = 3)
+
+# View the model summary
+summary(arima_model)
+```
+
+```{r}
+summary(arima_model)
+autoplot(forecast(arima_model, h = 600))
+```
+
+
+
+
+### Bayesian way
+
+To build an AR(3) model in a Bayesian way, you can use the brms package in the tidyverse, which provides a convenient interface for fitting Bayesian regression models using Markov Chain Monte Carlo (MCMC) methods. Here's an example of how to fit an AR(3) model using brms:
+
+
+```{r}
+set.seed(250)
+
+t_drift <- zoo(
+  x         = df[["value"]],
+  order.by  = df[["datetime"]],
+  frequency = 24
+)
+
+#-------------------------------MLE version
+mle_fit <- Arima(
+  t_drift_df %>% as.ts(), 
+  order = c(1, 0, 0), 
+  include.mean = FALSE, 
+  method = "ML"
+  )
+summary(mle_fit)
+autoplot(forecast(mle_fit, h = 600))
+```
+
+
+
+```{r}
+#-------------------------------Bayes version
+t_drift_df <- data.frame(y = as.matrix(t_drift))
+
+bayes_fit <- brm(
+  t_drift ~ 0,
+  autocor = cor_ar(~1, p = 1),
+  data = t_drift_df
+)
+
+summary(bayes_fit)
+newdata <- rbind(bayes_fit$data, data.frame(t_drift = rep(NA, 50)))
+pred <- as.data.frame(predict(bayes_fit, newdata, ndraws = 100))
+
+names(pred) <- c("est", "se", "lower", "upper")
+pred$y <- newdata$t_drift
+pred$x <- seq_len(nrow(newdata))
+ggplot(pred %>% filter(x > 26500), aes(x, est, ymin = lower, ymax = upper)) + 
+  geom_smooth(stat = "identity")  +
+  geom_point(aes(x, y), inherit.aes = FALSE, size = 0.8) +
+  theme_minimal()
+```
+
+#### More feature to the model
+
+```{r}
+t_drift_df_more <- df %>% 
+  mutate(month = month(datetime),
+         wday = wday(datetime),
+         year = year(datetime)
+         )
+```
+
+```{r}
+ggplot(t_drift_df_more, aes(x = value)) +
+    geom_histogram(colour = "#8B5A00", fill = "#CD8500") +
+    theme_bw() 
+```
+
+
+
+```{r}
+# Calculate accuracy measures
+yardstick::accuracy(pred$y, pred$est)
+```
+
+
+```{r}
+# View the posterior predictive distribution
+pp_check(bayes_fit)
+```
+
+```{r}
+pp_check(bayes_fit) +
+  geom_abline(intercept = 0, slope = 1 , color = "red", lty = 2)
+```
+
+
+
+In this example, we first convert the data.frame to a format suitable for brms, which requires a separate column for the time index. We then specify the AR(3) model using the ar() function in brms, which takes the time index column as input and specifies the order of the AR model as 3.
+
+The brm() function fits the Bayesian regression model using MCMC methods, which approximate the posterior distribution of the model parameters given the data. The resulting posterior distributions can be used to compute various posterior summaries, such as the mean, standard deviation, and credible intervals of the parameters.
+
+Note that Bayesian models can be computationally more intensive than classical methods, especially for large datasets or complex models. Also, the brms package provides many options for specifying prior distributions, which can have a significant impact on the model inference. It is therefore important to carefully choose appropriate prior distributions based on prior knowledge and model assumptions.
+
+### AR by hand
+
+```{r}
+pri_lag <- 
+  pri %>%
+  mutate(X = lag(spot_price_dkk, n = p))
+
+# Remove the first `p` rows since they have missing values
+pri_lag <- pri_lag %>%
+  slice((p+1):n())
+
+# Split the data into X and Y vectors
+X <- pri_lag$X
+Y <- pri_lag$spot_price_dkk
+
+# Estimate the parameters of the AR model using least squares
+coeffs <- solve(t(X) %*% X) %*% t(X) %*% Y
+
+# Print the estimated coefficients
+coeffs
+```
+
+
+```{r}
+# Use the AR model to generate predictions
+n_steps <- 10
+predictions <- numeric(n_steps)
+for (i in 1:n_steps) {
+  new_value <- coeffs[1] + sum(coeffs[-1] * tail(predictions, p))
+  predictions[i] <- new_value
+}
+```
+
+```{r}
+# Plot the true values and the predictions
+# Create a tibble with the true values and the predicted values
+df_pred <- tibble(date = c(pri_lag$hour_utc, seq(max(pri_lag$hour_utc) + 1, length.out = n_steps), by = "hour"),
+                  data = c(pri_lag$spot_price_dkk, predictions),
+                  type = c(rep("true", nrow(pri_lag)), rep("predicted", n_steps)))
+
+# Plot the true values and the predictions
+ggplot(df_pred, aes(x = date, y = data, color = type)) +
+  geom_line() +
+  theme_minimal()
+```
+
+
+
+## ModelTime framework traning
+
+```{r}
+splits <- pri %>% 
+  time_series_split(
+    date_var = hour_utc,
+    asses = "20 weeks",
+    cumulative = TRUE
+  )
+```
+
+```{r}
+splits %>% 
+  tk_time_series_cv_plan()
+```
+
+```{r}
+splits %>% 
+  tk_time_series_cv_plan() %>% 
+  plot_time_series_cv_plan(
+                           .date_var = hour_utc,
+                           .value = spot_price_dkk)
+```
+
+```{r}
+library(rsample)
+train_tbl <- training(splits) %>%
+    select(hour_utc, spot_price_dkk)
+```
+
+
+
+```{r}
+fit_lm <- lm(spot_price_dkk ~
+     lag_vec(spot_price_dkk, 1) + 
+     lag_vec(spot_price_dkk, 2) +
+     lag_vec(spot_price_dkk, 3), 
+   data = train_tbl)
+```
+
+```{r}
+fit_arima <- arima(train_tbl$spot_price_dkk, order = c(3,0,0))
+```
+
+```{r}
+predict(fit_arima, 1) %>%  as_tibble()
+```
+
+
+
+
+```{r}
+
+predict(
+  object = fit_lm,
+  newdata = tibble(
+    spot_price_dkk = c(2838.63,	2377.63, 1563.66, NA )
+  )
+)
+```
+
+
+```{r}
+model_fit_arima <- arima_reg(
+  non_seasonal_ar = 1,
+  seasonal_ar = 1
+) %>% 
+  set_engine("arima") %>% 
+  fit(
+    spot_price_dkk ~ hour_utc, training(splits )
+  )
+  
+
+modeltime_table(
+  model_fit_arima
+) %>% 
+  modeltime_calibrate(testing(splits)) %>% 
+  modeltime_forecast(
+    new_data = testing(splits),
+    actual_data = pri
+  ) %>% 
+  plot_modeltime_forecast()
+```
+
+
+```{r}
+model_auto_arima <- arima_reg() %>% 
+  set_engine("auto_arima") %>% 
+  fit(
+    spot_price_dkk ~ hour_utc
+    + hour(hour_utc)
+    + week(hour_utc)
+    + month(hour_utc, label = TRUE), 
+    training(splits)
+  )
+```
+
+```{r}
+modeltime_table(
+  model_auto_arima
+) %>% 
+  modeltime_calibrate(testing(splits)) %>% 
+  modeltime_forecast(
+    new_data = testing(splits),
+    actual_data = pri
+  ) %>% 
+  plot_modeltime_forecast()
+```
+
+
+```{r}
+calibra_tbl <- modeltime_table(model_auto_arima) %>% 
+  modeltime_calibrate(testing(splits))
+
+calibra_tbl %>% modeltime_accuracy()
+```
+
+```{python}
+
+```
+
+
+# Diff
+
+```{r}
+#exponential trend model
+exp.model <- lm(value~date,data = pri) 
+
+exp.model.df <- data.frame(x=pri$date,
+                           y=exp(fitted(exp.model)))
+
+summary(exp.model)
+```
+
+
+```{r}
+ggplot(pri, aes(x = date, y = value)) + 
+  geom_point()  +
+  stat_smooth(method = 'lm', aes(colour = 'linear'), se = FALSE) +
+  stat_smooth(method = 'lm', formula = y ~ poly(x,2), aes(colour = 'quadratic'), se= FALSE) +
+  stat_smooth(method = 'lm', formula = y ~ poly(x,3), aes(colour = 'cubic'), se = FALSE) +
+  stat_smooth(data=exp.model.df, method = 'loess',aes(x,y,colour = 'exponential'), se = FALSE) 
+```
+
+```{r}
+diff_pri <- pri %>% 
+  mutate(diff_value = c(NA, diff(value))) %>% 
+  drop_na()
+```
+
+```{r}
+ggplot(diff_pri, aes(x = date, y = diff_value)) + 
+  geom_point()  +
+  stat_smooth(method = 'lm', aes(colour = 'linear'), se = FALSE) +
+  stat_smooth(method = 'lm', formula = y ~ poly(x,2), aes(colour = 'quadratic'), se= FALSE) +
+  stat_smooth(method = 'lm', formula = y ~ poly(x,3), aes(colour = 'cubic'), se = FALSE)
+```
+
+
+```{r}
+df_model <- diff_pri %>% select(date, diff_value) %>% rename(value = diff_value)
+
+splits <- df_model %>%
+    time_series_split(date_var = date, assess = 1200, cumulative = TRUE)
+
+splits %>%
+    tk_time_series_cv_plan() %>%
+    plot_time_series_cv_plan(
+      .date_var = date, 
+      .value = value)
+```
+
+```{r}
+library(lubridate)
+
+model_fit_auto_arima <- arima_reg() %>%
+    set_engine("auto_arima") %>%
+    fit(
+        value ~ date 
+        + fourier_vec(date, period = 7)
+        + fourier_vec(date, period = 14)
+        + fourier_vec(date, period = 30)
+        + fourier_vec(date, period = 90)
+        + month(date, label = TRUE),
+        data = training(splits)
+    )
+
+# * Calibrate ----
+calibration_tbl <- modeltime_table(
+    #model_fit_arima,
+    model_fit_auto_arima
+) %>%
+    modeltime_calibrate(testing(splits))
+
+# * Forecast Test ----
+
+calibration_tbl %>%
+    modeltime_forecast(
+        new_data = testing(splits),
+        actual_data = df_model
+    ) %>%
+    plot_modeltime_forecast()
+
+# * Accuracy Test -----
+calibration_tbl %>% modeltime_accuracy()
+```
+
+
+# Kommentar
+
+* Se på de negative værdier.
+* Find funktion over hvilken trend der er inde i raw data.
+* Se på det at trække trend fra. 
+  * Se op om man kan bestemme hvilken trend der skal lægges over for at tage hånd om det er sinus eller lineær f.eks. 
+
+```{r}
+pri %>% 
+  filter(spot_price_dkk < 0) %>% 
+  mutate(log_value = log(spot_price_dkk + 1))
+```
+

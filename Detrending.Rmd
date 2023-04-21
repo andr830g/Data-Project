@@ -1,0 +1,304 @@
+---
+title: "Detrending"
+author: "Andreas Hansen"
+date: "2023-03-15"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(Kendall)
+library(ShellChron)
+library(tseries)
+```
+
+```{r}
+prices <- read.csv("data/price_clean.csv")
+con <- read.csv("data/con_clean.csv")
+prod <- read.csv("data/prod_clean.csv")
+```
+
+```{r}
+prices <- prices %>%
+  arrange(hour_utc)
+
+con <- con %>%
+  arrange(hour_utc)
+
+prod <- prod %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+
+prices["Hour"] <- hour(prices$hour_utc)
+prices["Wday"] <- wday(prices$hour_utc, label=T)
+prices["Week"] <- week(prices$hour_utc)
+prices["Month"] <- month(prices$hour_utc)
+prices["Year"] <- year(prices$hour_utc)
+```
+
+```{r}
+prices <- prices %>%
+  filter(price_area == "DK1")
+```
+
+```{r}
+plot(prices$spot_price_dkk, type="l")
+```
+
+
+```{r}
+prices$t <- sequence(26808, 1)
+
+sse <- function(data, par) {
+  with(data, sum((trendfn(data, par) - spot_price_dkk)^2))
+}
+```
+Laver funktion til udregning af sum of squared error.
+
+
+Lineær trend. god til at fange trenden i starten af datasættet men giver et meget dårligt billede af trenden sidst i dataen.
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] + par[2]*t)
+}
+
+optimum <- optim(c(1, 2), sse, data=prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(prices, par_result)
+residuals_trend <- prices$spot_price_dkk - prices_trend
+
+plot(prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(prices$t, prices_trend, col="red")
+
+plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+Simpel sinustrend. Har ingen effekt på dataen. dårligere SSE.
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] + par[2]*sin(t/24))
+}
+
+optimum <- optim(par=c(1000, 1000), fn=sse, data=prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(prices, par_result)
+residuals_trend <- prices$spot_price_dkk - prices_trend
+
+plot(prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(prices$t, prices_trend, col="red")
+
+plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+
+Eksponentiel trend. God til at fange trenden i starten, men trenden er dårlig til at repræsentere den sidste halvdel af dataen. SSE er cirka det samme som ved linæer trend.
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1]*exp(par[2]*t))
+}
+
+optimum <- optim(c(1, 1/10000), sse, data=prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(prices, par_result)
+residuals_trend <- prices$spot_price_dkk - prices_trend
+
+plot(prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(prices$t, prices_trend, col="red")
+
+plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+Avanceret sinustrend på sidste halvdel af dataen. Det detrendede data er centreret omkring 0, men har ikke fanget nogen betydningsfuld trend i dataen. Lavere SSE.
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] + par[2]*t + par[3]*sin((t+par[4])/par[5]))
+}
+
+subset_prices <- prices %>%
+  filter(t >= 15000)
+optimum <- optim(c(10000, 1/1000, 100, 10, 24), sse, data=subset_prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(subset_prices, par_result)
+residuals_trend <- subset_prices$spot_price_dkk - prices_trend
+
+plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(subset_prices$t, prices_trend, col="red")
+
+plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+Avanceret sum af to sinus trend
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] 
+       + par[2]*sin((t+par[3])/par[4]) 
+       + par[5]*sin((t+par[6])/par[7]))
+}
+
+subset_prices <- prices %>%
+  filter(t >= 15000)
+optimum <- optim(c(10000, 
+                   1, 0, 24, 
+                   1, 10, 24), sse, data=subset_prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(subset_prices, par_result)
+residuals_trend <- subset_prices$spot_price_dkk - prices_trend
+
+plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(subset_prices$t, prices_trend, col="red")
+
+plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+
+plot(diff(residuals_trend, 1), type="l", col=alpha("black", 0.8))
+lines(diff(subset_prices$spot_price_dkk, 1), col=alpha("red", 0.5))
+plot(diff(residuals_trend, 1)-diff(subset_prices$spot_price_dkk, 1), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+
+Avanceret sum af tre sinus trend
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] 
+       + par[2]*sin((t+par[3])/par[4]) 
+       + par[5]*sin((t+par[6])/par[7])
+       + par[8]*sin((t+par[9])/par[10]))
+}
+
+subset_prices <- prices %>%
+  filter(t >= 15000)
+optimum <- optim(c(10000, 
+                   1000, 0, 24, 
+                   100, 0, 48,
+                   100, 0, 168), sse, data=subset_prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(subset_prices, par_result)
+residuals_trend <- subset_prices$spot_price_dkk - prices_trend
+
+plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(subset_prices$t, prices_trend, col="red")
+
+plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+```{r}
+adf.test(residuals_trend)
+kpss.test(residuals_trend)
+adf.test(diff(subset_prices$spot_price_dkk, 1))
+kpss.test(diff(subset_prices$spot_price_dkk, 1))
+```
+
+Det er stadig dårligere end first diff.
+
+Sum af 7 sinus trend
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] 
+       + par[2]*sin((t+par[3])/240) 
+       + par[4]*sin((t+par[5])/480)
+       + par[6]*sin((t+par[7])/720)
+       + par[8]*sin((t+par[9])/960)
+       + par[10]*sin((t+par[11])/1200)
+       + par[12]*sin((t+par[13])/1440)
+       + par[12]*sin((t+par[13])/1680))
+}
+
+subset_prices <- prices %>%
+  filter(t >= 15000)
+optimum <- optim(c(10000, 
+                   5000, 0, 
+                   2000, 24,
+                   1000, 48,
+                   100, 72,
+                   100, 96,
+                   100, 120,
+                   1000, 144), sse, data=subset_prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(subset_prices, par_result)
+residuals_trend <- subset_prices$spot_price_dkk - prices_trend
+
+plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+lines(subset_prices$t, prices_trend, col="red")
+
+plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+```{r}
+adf.test(residuals_trend)
+kpss.test(residuals_trend)
+adf.test(diff(subset_prices$spot_price_dkk, 1))
+kpss.test(diff(subset_prices$spot_price_dkk, 1))
+```
+
+Det er stadig dårligere end first diff.
+
+
+
+
+Low pass filter anvendes til smoothing af data.
+
+span=0.3. Detrendede data er centreret omkring 0 og fanger godt en trend i starten. Stadig systematiske afvigelser sidste i dataen.
+```{r}
+prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.3)
+prices_trend <- predict(prices_loess, prices$t)
+
+plot(prices$t, prices$spot_price_dkk, type='l')
+lines(prices$t, prices_trend, col='red', lwd=2)
+
+plot(prices$t, prices$spot_price_dkk - prices_trend, type='l')
+```
+
+Span=0.1. Fanger trenden bedre ved at lave en stærkere centrering omkring 0 med færre systematiske afvigelser. Dog har vi stadig stor varians.
+```{r}
+prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.1)
+prices_trend <- predict(prices_loess, prices$t)
+
+plot(prices$t, prices$spot_price_dkk, type='l')
+lines(prices$t, prices_trend, col='red', lwd=2)
+
+plot(prices$t, prices$spot_price_dkk - prices_trend, type='l')
+```
+
+span=0.01. Detrending giver betydeligt bedre centrering og mindre varians.
+```{r}
+prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.01)
+prices_trend <- predict(prices_loess, prices$t)
+
+plot(prices$t, prices$spot_price_dkk, type='l')
+lines(prices$t, prices_trend, col='red', lwd=2)
+
+plot(prices$t, prices$spot_price_dkk - prices_trend, type='l')
+```
+
+Detrending giver resultater der minder om first differencing når span er meget lav. Denne detrending giver i højere grad data med færre systematiske afvigelser og bedre centrering omkring 0.
+
+Det virker som en bedre ide at bruge first differencing end detrending.
+
+
+
+
+
+
+
+

@@ -1,0 +1,266 @@
+---
+title: "Seasonality and trend"
+author: "Andreas Hansen"
+date: "2023-02-20"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(Kendall)
+```
+
+```{r}
+prices <- read.csv("data/price_clean.csv")
+con <- read.csv("data/con_clean.csv")
+prod <- read.csv("data/prod_clean.csv")
+```
+
+```{r}
+prices %>% 
+  filter(price_area == "DK1")  %>% 
+  mutate(date = lubridate::as_datetime(hour_utc)) %>% 
+  mutate(value = round(as.numeric(spot_price_dkk)), digits = 0) %>% 
+  select(date, value)    %>% 
+  drop_na()  %>% 
+  write_csv2('price_final.csv')
+```
+
+```{r}
+prices <- prices %>%
+  arrange(hour_utc)
+
+con <- con %>%
+  arrange(hour_utc)
+
+prod <- prod %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+
+splitfn <- function(x) {
+  return(strsplit(strsplit(x, '-')[[1]][3], ' ')[[1]][1])
+}
+prices["Hour"] <- hour(prices$hour_utc)
+prices["Wday"] <- wday(prices$hour_utc, label=T)
+prices["Mday"] <- sapply(prices$hour_utc, splitfn)
+prices["Week"] <- week(prices$hour_utc)
+prices["Month"] <- month(prices$hour_utc)
+prices["Year"] <- year(prices$hour_utc)
+```
+
+
+## Seasonality
+
+```{r}
+prices_seas <- prices %>%
+  filter(price_area == "DK1")
+
+plot(prices_seas$spot_price_dkk, type='line')
+```
+
+The mean price for each hour has large variations so we might suspect some hourly seasonality.
+```{r}
+prices_seas <- prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Hour) %>%
+  summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
+
+head(prices_seas, n=24)
+```
+
+The mean price for each weekday has large variation so we might suspect weekday seasonality.
+```{r}
+prices_seas <- prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Wday) %>%
+  summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
+
+head(prices_seas, n=7)
+```
+
+```{r}
+prices_seas <- prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Week) %>%
+  summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
+
+head(prices_seas, n=52)
+```
+
+```{r}
+prices_seas <- prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Year) %>%
+  summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
+
+head(prices_seas, n=5)
+```
+
+
+```{r}
+prices %>%
+  filter(price_area == "DK1", hour_utc >= "2020-01", hour_utc < "2020-02") %>%
+  group_by(Hour) %>%
+  ggplot(aes(x=date(hour_utc), 
+             y=spot_price_dkk, 
+             group=factor(Hour), 
+             color=factor(Hour))) + 
+  geom_line()
+```
+
+## Hourly and daily seasonality
+
+The mean price for each hour grouped by week day shows that the price varies greatly through out a day indication hourly seasonality. We also see a similar price pattern through out a day for all week days.
+```{r}
+prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Hour, Wday) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=hour, 
+             y=mean_price, 
+             group=factor(day), 
+             color=factor(day))) + 
+  geom_line()
+```
+
+### Weekly seasonality
+
+The mean price for each week day varies greatly through out a year.
+```{r}
+prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Wday, Week) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=week, 
+             y=mean_price, 
+             group=factor(day), 
+             color=factor(day))) + 
+  geom_line()
+```
+
+
+### Monthly seasonality
+
+```{r}
+prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Wday, Month) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=day, 
+             y=mean_price, 
+             group=factor(Month), 
+             color=factor(Month))) + 
+  geom_line()
+```
+
+Similar to weeks, then the price varies for each month. The pattern is similar for each week day for each month during a year.
+```{r}
+prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Wday, Month) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=month, 
+             y=mean_price, 
+             group=factor(day), 
+             color=factor(day))) + 
+  geom_line()
+```
+
+### Yearly seasonlity
+
+```{r}
+prices %>%
+  filter(price_area == "DK1") %>%
+  group_by(Month, Year) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=month, 
+             y=mean_price, 
+             group=factor(year), 
+             color=factor(year))) + 
+  geom_line()
+```
+
+
+### ACF
+
+Ikke en god metode til at checke for sæson.
+```{r}
+prices_seas <- prices %>%
+  filter(price_area == "DK1")
+
+acf(prices_seas$spot_price_dkk, lag.max=100)
+```
+
+Vi kan se en "top" pr. 12'te time (dermed et 24 timers gentagende mønster), og derfor seasonality på timebasis.
+
+
+```{r}
+prices_seas <- prices_seas %>%
+  filter(Hour == 12)
+
+acf(prices_seas$spot_price_dkk, lag.max=80)
+```
+
+Vi kan se en "top" pr. 7'ende dag, og derfor seasonality på dagsbasis.
+
+
+```{r}
+prices_seas <- prices_seas %>%
+  filter(Wday == "Ons")
+
+acf(prices_seas$spot_price_dkk, lag.max=50)
+```
+
+Det er sværere at se et præcist gentagende mønster nu på ugentlig basis (hver 4. observation) og på månedlig basis (hver 12. observation).
+
+## Trends
+
+```{r}
+prices_trend <- prices %>%
+  filter(price_area == "DK1")
+```
+
+```{r}
+plot(prices_trend$spot_price_dkk, type="line")
+```
+
+```{r}
+plot(prod$biomass, type="line")
+```
+
+```{r}
+plot(prod$fossil_gas, type="line")
+```
+
+```{r}
+plot(prod$fossil_hard_coal, type="line")
+```
+
+```{r}
+plot(prod$fossil_oil, type="line")
+```
+
+```{r}
+plot(prod$hydro_power, type="line")
+```
+
+```{r}
+plot(prod$solar_power, type="line")
+```
+
+```{r}
+plot(prod$onshore_wind_power, type="line")
+```
+
+```{r}
+plot(prod$offshore_wind_power, type="line")
+```
+
+```{r}
+plot(con$flex_settled_consumption, type="line")
+```
+
+```{r}
+plot(con$hourly_settled_consumption, type="line")
+```

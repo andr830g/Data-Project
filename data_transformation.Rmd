@@ -1,0 +1,195 @@
+---
+title: "Data transformation"
+author: "Andreas Hansen"
+date: "2023-03-06"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+```
+
+Indlæs data
+
+```{r}
+con <- read.csv("data/con_clean.csv")
+price <- read.csv("data/price_clean.csv")
+prod <- read.csv("data/prod_clean.csv")
+```
+
+```{r}
+price <- price %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+
+con <- con %>%
+  arrange(hour_utc)
+
+prod <- prod %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+```
+
+Lav lags til 24 timer, 48 timer og 168 timer tilbage.
+
+```{r}
+price$spot_price_dkk_lag24 <- lag(price$spot_price_dkk, 24)
+price$spot_price_dkk_lag48 <- lag(price$spot_price_dkk, 48)
+price$spot_price_dkk_lag168 <- lag(price$spot_price_dkk, 168)
+```
+
+```{r}
+plot(price$spot_price_dkk, type="line")
+```
+
+```{r}
+min(price$spot_price_dkk)
+```
+
+Vi kan se at vi har negative priser i vores datasæt.
+
+Vi prøver at "hacke" os frem til en måde hvorpå vi kan logtransformere vores data ved at sætte observationer mindre end 1 til bare at være 1.
+
+```{r}
+price$spot_price_dkk_hacklog <- price$spot_price_dkk
+price$spot_price_dkk_hacklog[price$spot_price_dkk_hacklog < 1] <- 1
+```
+
+```{r}
+plot(price$spot_price_dkk_hacklog, type = "line")
+```
+
+```{r}
+price$spot_price_dkk_hacklog <- log(price$spot_price_dkk_hacklog)
+```
+
+```{r}
+plot(price$spot_price_dkk_hacklog, type = "line")
+```
+
+Da har vi nu en brugbar men lidt "hacket" logtransformation.
+
+Da laver vi også lags til de hackede log data.
+
+```{r}
+price$spot_price_dkk_hacklog_lag24 <- lag(price$spot_price_dkk_hacklog, 24)
+price$spot_price_dkk_hacklog_lag48 <- lag(price$spot_price_dkk_hacklog, 48)
+price$spot_price_dkk_hacklog_lag168 <- lag(price$spot_price_dkk_hacklog, 168)
+```
+
+Vi prøver også at first difference vores data.
+
+```{r}
+price <- price %>%
+  mutate(spot_price_dkk_diff = spot_price_dkk-lag(spot_price_dkk))
+```
+
+```{r}
+plot(price$spot_price_dkk_diff, type = "line")
+```
+
+Vi kan da se at vi får et pænere ACF plot, men dog stadig med udsving på timebasis.
+
+```{r}
+acf(price$spot_price_dkk_diff[2:length(price$spot_price_dkk)], lag.max = 80)
+```
+
+Vi laver da også lags for de first differencede priser.
+
+```{r}
+price$spot_price_dkk_diff_lag24 <- lag(price$spot_price_dkk_diff, 24)
+price$spot_price_dkk_diff_lag48 <- lag(price$spot_price_dkk_diff, 48)
+price$spot_price_dkk_diff_lag168 <- lag(price$spot_price_dkk_diff, 168)
+```
+
+Vi prøver at køre et summary på alt data for 1, 2 og 7 lags.
+
+```{r}
+summary(lm(data=training_data, spot_price_dkk ~ lag(spot_price_dkk, 1) + lag(spot_price_dkk, 2) + lag(spot_price_dkk, 7)))
+```
+
+Nu prøver vi at træne en fixed window AR model på 75% af vores data og finder RMSE og MAE på de resterende 25% af data.
+
+```{r}
+length(price$spot_price_dkk)*0.75
+length(price$spot_price_dkk)
+```
+
+Vi prøver først at køre på det ikke-transformerede data.
+
+```{r}
+training_data <- price[1:20106,]
+test_data <- price[20107:26808,]
+
+AR_f <- lm(data=training_data, spot_price_dkk ~ spot_price_dkk_lag24 + spot_price_dkk_lag48 + spot_price_dkk_lag168)
+
+AR_pred_raw <- predict(AR_f, test_data)
+fe <- matrix(NA, 6702, 1)
+for (i in 1:6702){fe[i]=AR_pred_raw[i]-price$spot_price_dkk[20106+i]}
+R2_raw <- unlist(summary(AR_f)[8])
+RMSE_raw <- sqrt(mean(fe^2))
+MAE_raw <- mean(abs(fe))
+RMSE_raw
+MAE_raw
+R2_raw
+plot(20107:26808, price[20107:26808,]$spot_price_dkk, type="l", col=alpha("darkgreen", 0.4), xlab = "Time", ylab = "SpotPriceDKK", main = "AR model (Raw data Benchmark), Fixed window, 75%")
+lines(20107:26808, AR_pred_raw, col=alpha("blue", 0.6))
+```
+
+Derefter på det "hackede" log-transformerede data.
+
+```{r}
+training_data <- price[1:20106,]
+test_data <- price[20107:26808,]
+
+AR_f <- lm(data=training_data, spot_price_dkk_hacklog ~ spot_price_dkk_hacklog_lag24 + spot_price_dkk_hacklog_lag48 + spot_price_dkk_hacklog_lag168)
+
+AR_pred_hacklog <- predict(AR_f, test_data)
+fe <- matrix(NA, 6702, 1)
+for (i in 1:6702){fe[i]=AR_pred_hacklog[i]-price$spot_price_dkk_hacklog[20106+i]}
+R2_hacklog <- unlist(summary(AR_f)[8])
+RMSE_hacklog <- sqrt(mean(fe^2))
+MAE_hacklog <- mean(abs(fe))
+RMSE_hacklog
+MAE_hacklog
+R2_hacklog
+plot(20107:26808, price[20107:26808,]$spot_price_dkk_hacklog, type="l", col=alpha("darkgreen", 0.4), xlab = "Time", ylab = "SpotPriceDKK", main = "AR model (Hacked logged data Benchmark), Fixed window, 75%")
+lines(20107:26808, AR_pred_hacklog, col=alpha("blue", 0.6))
+```
+
+Og til sidst på det first differencede data.
+
+```{r}
+training_data <- price[1:20106,]
+test_data <- price[20107:26808,]
+
+AR_f <- lm(data=training_data, spot_price_dkk_diff ~ spot_price_dkk_diff_lag24 + spot_price_dkk_diff_lag48 + spot_price_dkk_diff_lag168)
+
+AR_pred_diff <- predict(AR_f, test_data)
+fe <- matrix(NA, 6702, 1)
+for (i in 1:6702){fe[i]=AR_pred_diff[i]-price$spot_price_dkk_diff[20106+i]}
+R2_diff <- unlist(summary(AR_f)[8])
+RMSE_diff <- sqrt(mean(fe^2))
+MAE_diff <- mean(abs(fe))
+RMSE_diff
+MAE_diff
+R2_diff
+plot(20107:26808, price[20107:26808,]$spot_price_dkk_diff, type="l", col=alpha("darkgreen", 0.4), xlab = "Time", ylab = "SpotPriceDKK", main = "AR model (Differenced data Benchmark), Fixed window, 75%")
+lines(20107:26808, AR_pred_diff, col=alpha("blue", 0.6))
+```
+
+Vi prøver lige at vende tilbage til det originale data på det differencede data.
+
+```{r}
+reverted <- c(price$spot_price_dkk[20106])
+for (i in 1:6701) {
+  reverted <- c(reverted, reverted[1] + sum(AR_pred_diff[1:i]))
+}
+```
+
+```{r}
+plot(20107:26808, price$spot_price_dkk[20107:26808], type="l", col=alpha("darkgreen", 0.5))
+lines(20107:26808, reverted, col=alpha("blue", 0.6))
+```
+
+
