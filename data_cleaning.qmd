@@ -1,0 +1,387 @@
+---
+title: "Projekt"
+author: "Lucas Bagge, Andreas Skiby Andersen, Andreas Hyldegaard Hansen"
+format: html
+---
+
+```{r}
+library(rjson)
+library(ggplot2)
+library(timetk)
+library(corrr)
+library(reticulate)
+library(tidyverse)
+library(tseries)
+library(stats)
+# season
+library(ggfortify)
+```
+
+## Data
+
+### Price
+
+Bachelor, hvor vi var fuldsætnd enig om hvad vi synes var spændende og vi kunne se igennem at det drejede sig om en karakter.
+
+```{r}
+price <- rjson::fromJSON(file = 'data/prices.json')
+
+price_df <- price$records  %>% 
+  map_df(unlist)  %>% 
+  janitor::clean_names() %>% 
+  mutate(
+         hour_utc = lubridate::as_datetime(hour_utc),
+         hour_dk = lubridate::as_datetime(hour_dk),
+         spot_price_dkk = as.numeric(spot_price_dkk))  %>% 
+  select(c(hour_utc, hour_dk,  price_area, spot_price_dkk))
+
+price_df %>% 
+  head()
+```
+
+### Production
+
+```{r}
+prod <- rjson::fromJSON(file = "data/production_dist.json")
+
+prod_df <- prod  %>% 
+  map_df(unlist)  %>% 
+  janitor::clean_names() %>% 
+  # Der er mangle tomme felter så jeg indsætter na for alle.
+  mutate_all(~na_if(., ""))
+
+prod_df %>% 
+  glimpse()
+```
+
+#### Fjern kolonner med ingen værdi plus dem med kun 2
+
+```{r}
+prod_df_removed <- 
+  prod_df %>% 
+  select(
+    where(
+      ~sum(!is.na(.x)) > 10          
+    ),
+    -c(total_load_unity_type, 
+       hydro_power_unity_type, 
+       other_renewable_unity_type)
+  ) %>% 
+  mutate(
+    across(total_load:exchange_nordic_countries, as.numeric),
+    across(total_load:exchange_nordic_countries, ~replace_na(.x, 0)),
+    hour_dk = lubridate::as_datetime(hour_dk),
+    hour_utc = lubridate::as_datetime(hour_utc)
+  )
+
+prod_df_removed %>% 
+  glimpse()
+```
+
+### Consumption
+
+```{r}
+con <- rjson::fromJSON(file = 'data/consumption.json')
+
+con_df <- con$records  %>% 
+  map_df(unlist)   
+  
+
+con_df_removed <- con_df %>% 
+  mutate(
+    across(FlexSettledConsumption:ResidualConsumption, as.numeric),
+    across(FlexSettledConsumption:ResidualConsumption, ~replace_na(.x, 0)),
+    HourDK = lubridate::as_datetime(HourDK),
+    HourUTC = lubridate::as_datetime(HourUTC)
+  ) %>% 
+  janitor::clean_names()  
+```
+
+```{r}
+con_df_removed %>% 
+  glimpse()
+```
+
+## Matching date range
+
+Vi tjekker hvor mange observationer vi har for "DK1" i price og prod datasættet, og hvor meget data vi har for ét af de mange grid companies.
+
+```{r}
+# Check length
+price_df %>%
+  filter(price_area == "DK1") %>%
+  nrow()
+
+con_df_removed %>%
+  filter(grid_company == "003") %>%
+  nrow()
+
+prod_df_removed %>%
+  filter(price_area == "DK1") %>%
+  nrow()
+```
+
+We check the start and end dates for our datasets.
+
+```{r}
+# Start and end date of datasets
+price_df %>%
+  filter(price_area == "DK1") %>%
+  pull(hour_utc) %>%
+  first()
+
+price_df %>%
+  filter(price_area == "DK1") %>%
+  pull(hour_utc) %>%
+  last()
+
+con_df_removed %>%
+  filter(grid_company == "003") %>%
+  pull(hour_utc) %>%
+  first()
+
+con_df_removed %>%
+  filter(grid_company == "003") %>%
+  pull(hour_utc) %>%
+  last()
+
+prod_df_removed %>%
+  filter(price_area == "DK1") %>%
+  pull(hour_utc) %>%
+  first()
+
+prod_df_removed %>%
+  filter(price_area == "DK1") %>%
+  pull(hour_utc) %>%
+  last()
+```
+
+We see that the consumption dataset observations "ends" earlier than the other two datasets.
+
+So we make the other datasets end at that observation as well.
+
+```{r}
+# After checking date bounds
+price_df %>%
+  filter(price_area == "DK1" & hour_utc <= as.POSIXct("2023-01-21 22:00:00", tz="UTC")) %>%
+  arrange(-desc(hour_utc)) %>%
+  nrow()
+
+con_df_removed %>%
+  filter(grid_company == "003") %>%
+  nrow()
+
+prod_df_removed %>%
+  filter(price_area == "DK1" & hour_utc <= as.POSIXct("2023-01-21 22:00:00", tz="UTC")) %>%
+  arrange(-desc(hour_utc)) %>%
+  nrow()
+```
+
+We see that we are missing 3 observations in prod_df_removed.
+
+We check what observations are missing
+
+```{r}
+price_df[!price_df$hour_utc %in% prod_df_removed$hour_utc, ] %>%
+  filter(price_area == "DK1")
+```
+
+Then we add the missing datapoints.
+
+```{r}
+# Add missing datapoints
+prod_df_equal <- prod_df_removed %>%
+  filter(hour_utc <= as.POSIXct("2023-01-21 22:00:00", tz="UTC")) %>%
+  add_row(hour_utc = as.POSIXct("2022-10-29 23:00:00", tz="UTC"), hour_dk = as.POSIXct("2022-10-30 01:00:00", tz="UTC"), price_area = "DK1") %>%
+  add_row(hour_utc = as.POSIXct("2021-10-30 23:00:00", tz="UTC"), hour_dk = as.POSIXct("2021-10-31 01:00:00", tz="UTC"), price_area = "DK1") %>%
+  add_row(hour_utc = as.POSIXct("2020-10-24 23:00:00", tz="UTC"), hour_dk = as.POSIXct("2020-10-25 01:00:00", tz="UTC"), price_area = "DK1") %>%
+  add_row(hour_utc = as.POSIXct("2022-10-29 23:00:00", tz="UTC"), hour_dk = as.POSIXct("2022-10-30 01:00:00", tz="UTC"), price_area = "DK2") %>%
+  add_row(hour_utc = as.POSIXct("2021-10-30 23:00:00", tz="UTC"), hour_dk = as.POSIXct("2021-10-31 01:00:00", tz="UTC"), price_area = "DK2") %>%
+  add_row(hour_utc = as.POSIXct("2020-10-24 23:00:00", tz="UTC"), hour_dk = as.POSIXct("2020-10-25 01:00:00", tz="UTC"), price_area = "DK2") %>%
+  arrange(desc(hour_utc))
+```
+
+We fill in the 3 new datapoints with prices for the hour just after the missing observation.
+
+```{r}
+# Fill the new datapoints with synthetic data
+prod_df_equal <- prod_df_equal %>%
+  group_by(price_area) %>%
+  fill(-c(hour_utc, hour_dk, price_area)) %>%
+  arrange(desc(hour_utc))
+```
+
+```{r}
+# Save equal price dataframe
+price_df_equal <- price_df %>%
+  filter(hour_utc <= as.POSIXct("2023-01-21 22:00:00", tz="UTC"))
+```
+
+```{r}
+# Check that data is now equal length
+price_df_equal %>%
+  filter(price_area == "DK1") %>%
+  nrow()
+
+con_df_removed %>%
+  filter(grid_company == "003") %>%
+  nrow()
+
+prod_df_equal %>%
+  filter(price_area == "DK1") %>%
+  nrow()
+```
+
+Now we see that all the datasets are of equal length.
+
+Below we also check how much data we have for all the different grid companies.
+
+```{r}
+l <- c()
+for (i in unique(con_df_removed$grid_company)) {
+  l <- c(l, con_df_removed %>%
+    filter(grid_company == i) %>%
+    nrow())
+}
+```
+
+```{r}
+l
+```
+
+And we at last turn all the columns where observations are in kwh into Mwh.
+
+```{r}
+con_df_removed$flex_settled_consumption <- con_df_removed$flex_settled_consumption/1000  # Make kwh to Mwh
+con_df_removed$hourly_settled_consumption <- con_df_removed$hourly_settled_consumption/1000
+con_df_removed$residual_consumption <- con_df_removed$residual_consumption/1000
+```
+
+Then we save the new cleaned data.
+
+```{r}
+write.csv(price_df_equal, 'data/price_clean.csv')
+write.csv(con_df_removed, 'data/con_clean.csv')
+write.csv(prod_df_equal, 'data/prod_clean.csv')
+```
+
+# Test data
+
+```{r}
+test_price <- rjson::fromJSON(file = 'data/test_data_prices.json')
+
+test_price_df <- test_price  %>% 
+  map_df(unlist)  %>% 
+  janitor::clean_names() %>% 
+  mutate(
+         hour_utc = lubridate::as_datetime(hour_utc),
+         hour_dk = lubridate::as_datetime(hour_dk),
+         spot_price_dkk = as.numeric(spot_price_dkk))  %>% 
+  select(c(hour_utc, hour_dk,  price_area, spot_price_dkk))
+
+test_price_df %>% 
+  head()
+```
+
+Test om alle observationer er til stede.
+```{r}
+test_price_df %>%
+  filter(price_area=="DK1") %>%
+  select(hour_utc) %>%
+  nrow()
+
+test_price_df %>%
+  filter(price_area=="DK1") %>%
+  select(hour_utc) %>%
+  unique() %>%
+  nrow()
+```
+
+
+```{r}
+test_prod <- rjson::fromJSON(file = "data/test_data_production.json")
+
+test_prod_df <- test_prod  %>% 
+  map_df(unlist)  %>% 
+  janitor::clean_names() %>% 
+  # Der er mangle tomme felter så jeg indsætter na for alle.
+  mutate_all(~na_if(., ""))
+
+test_prod_df %>% 
+  glimpse()
+```
+
+```{r}
+test_prod_df_removed <- 
+  test_prod_df %>% 
+  select(
+    -c(hydro_power_unity_type,
+       hydro_power_assembly_name,
+       other_renewable_unity_type,
+       other_renewable_assembly_name)
+  ) %>% 
+  mutate(
+    across(total_load:exchange_nordic_countries, as.numeric),
+    across(total_load:exchange_nordic_countries, ~replace_na(.x, 0)),
+    hour_dk = lubridate::as_datetime(hour_dk),
+    hour_utc = lubridate::as_datetime(hour_utc)
+  )
+
+test_prod_df_removed %>% 
+  glimpse()
+```
+
+Test om alle observationer er til stede
+```{r}
+test_prod_df %>%
+  filter(price_area=="DK1") %>%
+  select(hour_utc) %>%
+  nrow()
+
+test_prod_df %>%
+  filter(price_area=="DK1") %>%
+  select(hour_utc) %>%
+  unique() %>%
+  nrow()
+```
+
+
+```{r}
+test_con <- rjson::fromJSON(file = 'data/Test_data_consumption.json')
+
+test_con_df <- test_con  %>% 
+  map_df(unlist)
+  
+test_con_df_removed <- test_con_df %>%
+  select(
+    -c(ResidualConsumption.UnityType,
+       ResidualConsumption.AssemblyName,
+       HourlySettledConsumption.UnityType,
+       HourlySettledConsumption.AssemblyName)
+  ) %>%
+  mutate(
+    across(FlexSettledConsumption:HourlySettledConsumption, as.numeric),
+    across(FlexSettledConsumption:HourlySettledConsumption, ~replace_na(.x, 0)),
+    HourDK = lubridate::as_datetime(HourDK),
+    HourUTC = lubridate::as_datetime(HourUTC)
+  ) %>% 
+  janitor::clean_names()  
+```
+
+```{r}
+test_con_df_removed %>% 
+  glimpse()
+```
+
+```{r}
+# Make kwh to Mwh
+test_con_df_removed$flex_settled_consumption <- test_con_df_removed$flex_settled_consumption/1000
+test_con_df_removed$hourly_settled_consumption <- test_con_df_removed$hourly_settled_consumption/1000
+```
+
+
+```{r}
+write.csv(test_price_df, 'data/test_price_clean.csv')
+write.csv(test_con_df_removed, 'data/test_con_clean.csv')
+write.csv(test_prod_df_removed, 'data/test_prod_clean.csv')
+```
