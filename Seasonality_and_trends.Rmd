@@ -184,6 +184,16 @@ prices %>%
 
 ### ACF
 
+```{r}
+acf(prices$spot_price_dkk)
+pacf(prices$spot_price_dkk)
+```
+
+```{r}
+acf(diff(prices$spot_price_dkk, 1))
+pacf(diff(prices$spot_price_dkk, 1))
+```
+
 Ikke en god metode til at checke for sæson.
 ```{r}
 prices_seas <- prices %>%

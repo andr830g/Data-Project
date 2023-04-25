@@ -65,8 +65,7 @@ ts_data <- ts(ts_df$value, frequency = 24)
 ```
 
 
-# AR
-## AR1
+# ARIMA
 600 timers forecast.
 
 AR(1)
@@ -83,11 +82,18 @@ lines(fitted(AR1), col=alpha("red", 0.5))
 ```
 
 ```{r}
+acf(diff(prices$spot_price_dkk, 1))
+pacf(diff(prices$spot_price_dkk, 1))
+```
+
+
+```{r}
 #plot(AR1$residuals)
 aTSA::arch.test(AR1)
 kpss.test(AR1$residuals)
 adf.test(AR1$residuals, k=1)
 acf(AR1$residuals)
+pacf(AR1$residuals)
 hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
@@ -111,6 +117,7 @@ plot(AR1$residuals)
 kpss.test(AR1$residuals)
 adf.test(AR1$residuals, k=1)
 acf(AR1$residuals)
+pacf(AR1$residuals)
 hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
@@ -121,7 +128,7 @@ AR(1) med seasonality og first differencing.
 ```{r}
 AR1 <- arima(x=prices$spot_price_dkk, 
              order=c(1, 1, 0), 
-             seasonal = list(order=c(1, 0, 0), period=24))
+             seasonal = list(order=c(1, 1, 0), period=24))
 summary(AR1)
 plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
 lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red")
@@ -135,6 +142,7 @@ plot(AR1$residuals)
 kpss.test(AR1$residuals)
 adf.test(AR1$residuals, k=1)
 acf(AR1$residuals)
+pacf(AR1$residuals)
 hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
@@ -161,6 +169,7 @@ plot(AR1$residuals)
 kpss.test(AR1$residuals)
 adf.test(AR1$residuals, k=1)
 acf(AR1$residuals)
+pacf(AR1$residuals)
 hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
@@ -188,6 +197,7 @@ plot(AR1$residuals)
 kpss.test(AR1$residuals)
 adf.test(AR1$residuals, k=1)
 acf(AR1$residuals)
+pacf(AR1$residuals)
 hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
@@ -196,9 +206,11 @@ qqline(AR1$residuals)
 
 SARIMA(24, 1, 0)(7, 0, 0)(24) med metode = conditional sum of squares, ellers sker der en fejl under numerisk optimering.
 ```{r}
-fix_vec_AR <- c(rep(0, 23), NA)
+#fix_vec_AR <- c(rep(0, 23), NA)
+fix_vec_AR <- c(rep(NA, 24))
 fix_vec_MA <- c()
-fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
+#fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
+fix_vec_SAR <- c(rep(NA, 7))
 fix_vec_SMA <- c()
 AR1 <- arima(x=prices$spot_price_dkk, 
              order=c(24, 1, 0), 
@@ -218,11 +230,85 @@ lines(fitted(AR1), col=alpha("red", 0.5))
 plot(AR1$residuals)
 kpss.test(AR1$residuals)
 adf.test(AR1$residuals, k=1)
-acf(AR1$residuals)
+acf(AR1$residuals, lag.max=50)
+pacf(AR1$residuals, lag.max=50)
 hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
 ```
+
+SARIMA(1, 1, 24)(0, 0, 7)(24)
+```{r}
+#fix_vec_AR <- c(rep(0, 23), NA)
+fix_vec_AR <- c(rep(NA, 1))
+fix_vec_MA <- c(rep(NA, 24))
+#fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
+fix_vec_SAR <- c(rep(NA, 0))
+fix_vec_SMA <- c(rep(NA, 7))
+AR1 <- arima(x=prices$spot_price_dkk, 
+             order=c(1, 1, 24), 
+             fixed=c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA), 
+             seasonal = list(order=c(0, 0, 7), period=24), 
+             method = "CSS")
+
+summary(AR1)
+plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
+lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red")
+
+plot(prices$spot_price_dkk, type="l", col=alpha("blue", 0.5))
+lines(fitted(AR1), col=alpha("red", 0.5))
+```
+
+```{r}
+plot(AR1$residuals)
+kpss.test(AR1$residuals)
+adf.test(AR1$residuals, k=1)
+acf(AR1$residuals, lag.max=1000)
+pacf(AR1$residuals, lag.max=1000)
+hist(AR1$residuals, breaks=50)
+qqnorm(AR1$residuals)
+qqline(AR1$residuals)
+```
+
+
+SARIMA(24, 1, 24)(7, 0, 0)(24)
+```{r}
+#fix_vec_AR <- c(rep(0, 23), NA)
+fix_vec_AR <- c(rep(NA, 24))
+fix_vec_MA <- c(rep(NA, 24))
+#fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
+fix_vec_SAR <- c(rep(NA, 7))
+fix_vec_SMA <- c()
+AR1 <- arima(x=prices$spot_price_dkk, 
+             order=c(24, 1, 24), 
+             fixed=c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA), 
+             seasonal = list(order=c(7, 0, 0), period=24), 
+             method = "CSS")
+
+summary(AR1)
+plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
+lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red")
+
+plot(prices$spot_price_dkk, type="l", col=alpha("blue", 0.5))
+lines(fitted(AR1), col=alpha("red", 0.5))
+```
+
+```{r}
+plot(AR1$residuals)
+kpss.test(AR1$residuals)
+adf.test(AR1$residuals, k=1)
+acf(AR1$residuals, lag.max=1000)
+pacf(AR1$residuals, lag.max=1000)
+hist(AR1$residuals, breaks=50)
+qqnorm(AR1$residuals)
+qqline(AR1$residuals)
+```
+
+```{r}
+acf(diff(prices$spot_price_dkk, 1), lag.max=500)
+pacf(diff(prices$spot_price_dkk, 1), lag.max=500)
+```
+Pacf viser SAR(7) er fornuftigt.
 
 
 
@@ -244,125 +330,97 @@ plot(as.data.frame(fitted(fit_garch))[,1], type="l")
 plot(prices$spot_price_dkk - as.data.frame(fitted(fit_garch))[,1], type="l")
 ```
 
-## Finding appropriate benchmark model
 
-We see that we can add a keyword "fixed" with a vector of fixed coefficients. This should make us able to add create very specific AR models.
+# Day-ahead forecast
 
-Below we see that the price for the next hour only depends on the previous price for the previous hour and the price 7 hours ago.
-
+Funktion til forecast
 ```{r}
-AR1 <- arima(x=prices$spot_price_dkk, 
-             order=c(7, 1, 0), fixed = c(NA, 0, 0, 0, 0, 0, NA)) 
-summary(AR1)
-plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
-lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red")
-```
-
-We can then use a rep() to create a very specific AR model.
-We will try to use a model where the forecasted price for a specific hour depends on the price 24 hours ago, 48 hours ago and 168 hours ago as specified in litterature.
-
-```{r}
-fix_vec <- c(rep(0, 23), NA, rep(0,23), NA, rep(0,119), NA)
-```
-
-```{r}
-AR1 <- arima(x=prices$spot_price_dkk, 
-             order=c(168, 1, 0), fixed = fix_vec)
-summary(AR1)
-plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
-lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red")
-```
-
-This runs very slow though, so we will instead try to just use a 24 hour coefficient instead.
-
-```{r}
-fix_vec <- c(rep(0, 23), NA)
-```
-
-```{r}
-AR1 <- arima(x=prices$spot_price_dkk, 
-             order=c(24, 1, 0), fixed = fix_vec)
-summary(AR1)
-plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
-lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red") # 26832
-```
-
-This we will use as our benchmark model.
-
-## Day-ahead forecasting med Benchmark model
-
-```{r}
-AR1 <- arima(x=prices$spot_price_dkk, 
-             order=c(24, 1, 0), fixed = fix_vec)
-summary(AR1)
-plot(prices$spot_price_dkk, type="l", xlim=c(26700, 26820))
-points(x=26809 , y=as.data.frame(forecast(AR1, h=1))[,1], col="red", pch=20, cex=0.5) # 26832
-```
-
-forecast en time frem, dårlig
-```{r message=FALSE, warning=FALSE}
-training_data <- prices$spot_price_dkk[1:26640]
-test_data <- prices$spot_price_dkk[26641:26808]
-forecasts <- c()
-
-for (i in 1:168){
+forecast_func <- function(days_ahead, 
+                          fix_vec_AR, d, fix_vec_MA, 
+                          fix_vec_SAR, D, fix_vec_SMA,
+                          Tperiod,
+                          plotbool) {
+  training_data <- prices$spot_price_dkk[1:(26808-24*days_ahead)]
+  
+  validation_data <- prices$spot_price_dkk[(length(training_data)+1):26808]
+  
+  subset_training_data <-
+    prices$spot_price_dkk[(length(training_data)-24*7-50):length(training_data)]
+  
+  forecasts <- c()
+  
+  start <- Sys.time()
   AR_f <- arima(x=training_data, 
-             order=c(24, 1, 0), fixed = fix_vec)
+                order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                fixed = c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA),
+                seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                period=Tperiod),
+                include.mean = F,
+                method="CSS")
+  AR_f_coef <- AR_f$coef
   
-  forecasts <- c(forecasts, as.data.frame(forecast(AR_f, h=1))[,1])
+  for (i in 1:days_ahead){
+    AR_f <- arima(x=subset_training_data, 
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = AR_f_coef,
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    forecasts <- c(forecasts, as.data.frame(forecast(AR_f, h=24))[,1])
+    subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
+  }
+  end <- Sys.time()
+  print(end-start)
+  residuals <- validation_data-forecasts
+  RMSE <- sqrt(mean(residuals^2))
   
-  training_data <- c(training_data, test_data[i])
+  print(RMSE)
+  if(plotbool == T) {
+    plot(training_data, type="l", 
+         xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500),
+         main="Forecasts", xlab="Time", ylab="Price")
+    lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
+    lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
+    legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
+  }
+  return(list(forecasts, residuals, RMSE, AR_f_coef))
 }
 
-plot(head(training_data, -168), type="l", xlim=c(26500, 26820), ylim=c(-100, 1700))
-lines(x=26641:26808 , y=forecasts, col="blue")
-lines(x=26641:26808 , y=test_data, col=alpha("red", 0.5))
-lines(x=26641:26808 , y=test_data-forecasts, col=alpha("green", 0.5))
+```
+
+## ARIMA(1, 0, 0)(0, 0, 0)(0)
+```{r}
+outputlist <- forecast_func(28, 
+                            c(NA), 0, c(), 
+                            c(), 0, c(), 
+                            24,
+                            plotbool=T)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
 ```
 
 ## ARIMA(24, 1, 0)
-ARIMA(24, 1, 0) forecast 24 timer i 28 dage.
 ```{r}
-days_ahead <- 28
-training_data <- prices$spot_price_dkk[1:(26808-24*days_ahead)]
-validation_data <- prices$spot_price_dkk[(length(training_data)+1):26808]
-subset_training_data <- prices$spot_price_dkk[(length(training_data)-50-24*days_ahead):length(training_data)]
-forecasts <- c()
+outputlist <- forecast_func(28, 
+                            c(rep(0, 23), NA), 1, c(), 
+                            c(), 0, c(), 
+                            24,
+                            plotbool=T)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
 
-start <- Sys.time()
-fix_vec_AR <- c(rep(0, 23), NA)
-fix_vec_SAR <- c()
-AR_f <- arima(x=training_data, 
-             order=c(length(fix_vec_AR), 1, 0), 
-             fixed = c(fix_vec_AR, fix_vec_SAR),
-             seasonal = list(order=c(length(fix_vec_SAR), 0, 0), period=24), 
-             method="CSS")
-AR_f_coef <- AR_f$coef
-
-for (i in 1:days_ahead){
-  AR_f <- arima(x=subset_training_data, 
-             order=c(length(fix_vec_AR), 1, 0), 
-             fixed = AR_f_coef,
-             seasonal = list(order=c(length(fix_vec_SAR), 0, 0), period=24), 
-             method="CSS")
-  
-  forecasts <- c(forecasts, as.data.frame(forecast(AR_f, h=24))[,1])
-  
-  subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
-}
-end <- Sys.time()
-print(end-start)
-residuals <- validation_data-forecasts
-print(sqrt(mean(residuals^2)))
-```
-
-```{r}
-plot(training_data, type="l", xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500))
-lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
-lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
-```
-
-```{r}
 plot(residuals, type="l")
 kpss.test(residuals)
 adf.test(residuals, k=1)
@@ -372,49 +430,18 @@ qqline(residuals)
 ```
 
 
-## SARIMA(24, 1, 0)(7, 0 , 0)(24)
-SARIMA(24, 1, 0)(7, 0, 0)(24) forecast 24 timer i 28 dage.
+## SARIMA(24, 1, 0)(7, 0, 0)(24)
 ```{r}
-days_ahead <- 28
-training_data <- prices$spot_price_dkk[1:(26808-24*days_ahead)]
-validation_data <- prices$spot_price_dkk[(length(training_data)+1):26808]
-subset_training_data <- prices$spot_price_dkk[(length(training_data)-50-24*days_ahead):length(training_data)]
-forecasts <- c()
+outputlist <- forecast_func(28, 
+                            c(rep(0, 23), NA), 1, c(), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
+                            24,
+                            plotbool=T)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
 
-start <- Sys.time()
-fix_vec_AR <- c(rep(0, 23), NA)
-fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
-AR_f <- arima(x=training_data, 
-             order=c(length(fix_vec_AR), 1, 0), 
-             fixed = c(fix_vec_AR, fix_vec_SAR),
-             seasonal = list(order=c(length(fix_vec_SAR), 0, 0), period=24), 
-             method="CSS")
-AR_f_coef <- AR_f$coef
-
-for (i in 1:days_ahead){
-  AR_f <- arima(x=subset_training_data, 
-             order=c(length(fix_vec_AR), 1, 0), 
-             fixed = AR_f_coef,
-             seasonal = list(order=c(length(fix_vec_SAR), 0, 0), period=24), 
-             method="CSS")
-  
-  forecasts <- c(forecasts, as.data.frame(forecast(AR_f, h=24))[,1])
-  
-  subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
-}
-end <- Sys.time()
-print(end-start)
-residuals <- validation_data-forecasts
-print(sqrt(mean(residuals^2)))
-```
-
-```{r}
-plot(training_data, type="l", xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500))
-lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
-lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
-```
-
-```{r}
 plot(residuals, type="l")
 kpss.test(residuals)
 adf.test(residuals, k=1)
@@ -425,48 +452,17 @@ qqline(residuals)
 
 
 ## SARIMA(1, 1, 0)(7, 0, 0)(24)
-SARIMA(1, 1, 0)(7, 0, 0)(24) forecast 24 timer i 28 dage.
 ```{r}
-days_ahead <- 28
-training_data <- prices$spot_price_dkk[1:(26808-24*days_ahead)]
-validation_data <- prices$spot_price_dkk[(length(training_data)+1):26808]
-subset_training_data <- prices$spot_price_dkk[(length(training_data)-50-24*days_ahead):length(training_data)]
-forecasts <- c()
+outputlist <- forecast_func(28, 
+                            c(NA), 1, c(), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
+                            24,
+                            plotbool=T)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
 
-start <- Sys.time()
-fix_vec_AR <- c(NA)
-fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
-AR_f <- arima(x=training_data, 
-             order=c(length(fix_vec_AR), 1, 0), 
-             fixed = c(fix_vec_AR, fix_vec_SAR),
-             seasonal = list(order=c(length(fix_vec_SAR), 0, 0), period=24), 
-             method="CSS")
-AR_f_coef <- AR_f$coef
-
-for (i in 1:days_ahead){
-  AR_f <- arima(x=subset_training_data, 
-             order=c(length(fix_vec_AR), 1, 0), 
-             fixed = AR_f_coef,
-             seasonal = list(order=c(length(fix_vec_SAR), 0, 0), period=24), 
-             method="CSS")
-  
-  forecasts <- c(forecasts, as.data.frame(forecast(AR_f, h=24))[,1])
-  
-  subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
-}
-end <- Sys.time()
-print(end-start)
-residuals <- validation_data-forecasts
-print(sqrt(mean(residuals^2)))
-```
-
-```{r}
-plot(training_data, type="l", xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500))
-lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
-lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
-```
-
-```{r}
 plot(residuals, type="l")
 kpss.test(residuals)
 adf.test(residuals, k=1)
@@ -474,3 +470,28 @@ hist(residuals, breaks=50)
 qqnorm(residuals)
 qqline(residuals)
 ```
+
+## SARIMA(24, 1, 24)(7, 0, 0)(24)
+```{r}
+outputlist <- forecast_func(28, 
+                            c(rep(NA, 24)), 1, c(rep(NA, 24)), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
+                            24,
+                            plotbool=T)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+
+
+
