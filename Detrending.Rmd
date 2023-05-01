@@ -8,8 +8,6 @@ output: html_document
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
 library(lubridate)
-library(Kendall)
-library(ShellChron)
 library(tseries)
 ```
 
@@ -46,6 +44,21 @@ prices <- prices %>%
 plot(prices$spot_price_dkk, type="l")
 ```
 
+Check stationarity for raw data against first differenced data.
+
+```{r}
+acf(prices$spot_price_dkk, lag.max = 1000)
+```
+
+```{r}
+adf.test(prices$spot_price_dkk)
+kpss.test(prices$spot_price_dkk)
+adf.test(diff(subset_prices$spot_price_dkk, 1))
+kpss.test(diff(subset_prices$spot_price_dkk, 1))
+```
+
+We see that Augmented Dickey Fuller says that the time series is stationary in both cases, but looking at the ACF plot for the raw data. It definitely does not look to be stationary.
+KPSS test says that the raw data is not stationary, but the first differenced data is stationary.
 
 ```{r}
 prices$t <- sequence(26808, 1)
@@ -70,7 +83,7 @@ optimum
 prices_trend <- trendfn(prices, par_result)
 residuals_trend <- prices$spot_price_dkk - prices_trend
 
-plot(prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(prices$t, prices_trend, col="red")
 
 plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -90,7 +103,7 @@ optimum
 prices_trend <- trendfn(prices, par_result)
 residuals_trend <- prices$spot_price_dkk - prices_trend
 
-plot(prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(prices$t, prices_trend, col="red")
 
 plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -111,7 +124,7 @@ optimum
 prices_trend <- trendfn(prices, par_result)
 residuals_trend <- prices$spot_price_dkk - prices_trend
 
-plot(prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(prices$t, prices_trend, col="red")
 
 plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -133,7 +146,7 @@ optimum
 prices_trend <- trendfn(subset_prices, par_result)
 residuals_trend <- subset_prices$spot_price_dkk - prices_trend
 
-plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(subset_prices$t, prices_trend, col="red")
 
 plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -159,7 +172,7 @@ optimum
 prices_trend <- trendfn(subset_prices, par_result)
 residuals_trend <- subset_prices$spot_price_dkk - prices_trend
 
-plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(subset_prices$t, prices_trend, col="red")
 
 plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -192,7 +205,7 @@ optimum
 prices_trend <- trendfn(subset_prices, par_result)
 residuals_trend <- subset_prices$spot_price_dkk - prices_trend
 
-plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(subset_prices$t, prices_trend, col="red")
 
 plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -237,7 +250,7 @@ optimum
 prices_trend <- trendfn(subset_prices, par_result)
 residuals_trend <- subset_prices$spot_price_dkk - prices_trend
 
-plot(subset_prices$t, subset_prices$spot_price_dkk, col=alpha("black", 0.5), type="l")
+plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
 lines(subset_prices$t, prices_trend, col="red")
 
 plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
@@ -263,10 +276,10 @@ span=0.3. Detrendede data er centreret omkring 0 og fanger godt en trend i start
 prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.3)
 prices_trend <- predict(prices_loess, prices$t)
 
-plot(prices$t, prices$spot_price_dkk, type='l')
+plot(prices$t, prices$spot_price_dkk, main="Nonparametric fit", type='l')
 lines(prices$t, prices_trend, col='red', lwd=2)
 
-plot(prices$t, prices$spot_price_dkk - prices_trend, type='l')
+plot(prices$t, prices$spot_price_dkk - prices_trend, main="Residuals/detrend", type='l')
 ```
 
 Span=0.1. Fanger trenden bedre ved at lave en stærkere centrering omkring 0 med færre systematiske afvigelser. Dog har vi stadig stor varians.
@@ -274,10 +287,10 @@ Span=0.1. Fanger trenden bedre ved at lave en stærkere centrering omkring 0 med
 prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.1)
 prices_trend <- predict(prices_loess, prices$t)
 
-plot(prices$t, prices$spot_price_dkk, type='l')
+plot(prices$t, prices$spot_price_dkk, main="Nonparametric fit", type='l')
 lines(prices$t, prices_trend, col='red', lwd=2)
 
-plot(prices$t, prices$spot_price_dkk - prices_trend, type='l')
+plot(prices$t, prices$spot_price_dkk - prices_trend, main="Residuals/detrend", type='l')
 ```
 
 span=0.01. Detrending giver betydeligt bedre centrering og mindre varians.
@@ -285,10 +298,10 @@ span=0.01. Detrending giver betydeligt bedre centrering og mindre varians.
 prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.01)
 prices_trend <- predict(prices_loess, prices$t)
 
-plot(prices$t, prices$spot_price_dkk, type='l')
+plot(prices$t, prices$spot_price_dkk, main="Nonparametric fit", type='l')
 lines(prices$t, prices_trend, col='red', lwd=2)
 
-plot(prices$t, prices$spot_price_dkk - prices_trend, type='l')
+plot(prices$t, prices$spot_price_dkk - prices_trend, main="Residuals/detrend", type='l')
 ```
 
 Detrending giver resultater der minder om first differencing når span er meget lav. Denne detrending giver i højere grad data med færre systematiske afvigelser og bedre centrering omkring 0.

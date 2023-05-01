@@ -1,27 +1,17 @@
 ---
-title: "Projekt"
-author: "Lucas Bagge, Andreas Skiby Andersen, Andreas Hyldegaard Hansen"
+title: "Data Cleaning"
+author: "Andreas Skiby Andersen, Andreas Hyldegaard Hansen"
 format: html
 ---
 
 ```{r}
 library(rjson)
-library(ggplot2)
-library(timetk)
-library(corrr)
-library(reticulate)
 library(tidyverse)
-library(tseries)
-library(stats)
-# season
-library(ggfortify)
 ```
 
 ## Data
 
 ### Price
-
-Bachelor, hvor vi var fuldsætnd enig om hvad vi synes var spændende og vi kunne se igennem at det drejede sig om en karakter.
 
 ```{r}
 price <- rjson::fromJSON(file = 'data/prices.json')
@@ -378,7 +368,6 @@ test_con_df_removed %>%
 test_con_df_removed$flex_settled_consumption <- test_con_df_removed$flex_settled_consumption/1000
 test_con_df_removed$hourly_settled_consumption <- test_con_df_removed$hourly_settled_consumption/1000
 ```
-
 
 ```{r}
 write.csv(test_price_df, 'data/test_price_clean.csv')

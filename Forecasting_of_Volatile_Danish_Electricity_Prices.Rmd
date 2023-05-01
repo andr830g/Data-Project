@@ -1,0 +1,233 @@
+---
+title: "Forecasting of volatile Danish Electricity Prices"
+author: 'Andreas Skiby Andersen, Andreas Hyldegaard Hansen'
+date: 'Last update: `r Sys.Date()`'
+output:
+  html_document:
+    theme: united
+    code_folding: show
+    number_sections: true
+    toc: yes
+    toc_float: true
+    toc_depth: 5
+  pdf_document:
+    number_sections: true
+    toc: yes
+    toc_depth: '5'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Introduction
+
+Note that we are only focusing on forecasting the electricity prices of DK1.
+
+# Data cleaning
+
+In this section, we are referring to our work done in data_cleaning.qmd.
+
+We have gathered our raw data from www.energidataservice.dk, where our data was in a .JSON file format.
+
+After reading the data, we made sure that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values to be able to use them. In the "Consumption" data set, we only had 3 variables, but still a lot of missing values. To keep as much information from the "Consumption" data set, we then transformed all the missing values to 0's.
+
+After having cleaned the columns, we then moved on to the rows, where we found out that the start and end times of our 3 data sets did not match. All the data sets have the same first observation regarding time, but the "Consumption" data set, were missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
+
+We then had a strange problem where there was 3 somewhat random observations that were missing from the "Production" data set. We then had to add the previous observation's values to the missing rows to fill in the missing observations.
+We are aware that this modification, can lead to incorrect results, but we had to fix this problem to avoid errors later on.
+
+At last, we also divided the columns in the "Consumption" data set with 1000, since we found out that the electricity used in the "Consumption" data set was in kwh, where we had electricity in Mwh in the other data sets.
+
+Having the data in a .JSON file format made reading the data very slow, so we decided to save the cleaned data as a .csv file format, which made it much faster to read.
+
+```{r include=FALSE}
+prices <- read.csv("data/price_clean.csv") %>%
+  mutate(
+         hour_utc = lubridate::as_datetime(hour_utc),
+         hour_dk = lubridate::as_datetime(hour_dk),
+         spot_price_dkk = as.numeric(spot_price_dkk))
+con <- read.csv("data/con_clean.csv")
+prod <- read.csv("data/prod_clean.csv")
+```
+
+```{r include=FALSE}
+prices <- prices %>%
+  arrange(hour_utc) %>%
+  filter(price_area == "DK1")
+
+con <- con %>%
+  arrange(hour_utc)
+
+prod <- prod %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+
+prices["Hour"] <- hour(prices$hour_utc)
+prices["Wday"] <- wday(prices$hour_utc, label=T)
+prices["Week"] <- week(prices$hour_utc)
+prices["Month"] <- month(prices$hour_utc)
+prices["Year"] <- year(prices$hour_utc)
+```
+
+```{r include=False}
+prices <- prices %>%
+  filter(price_area == "DK1")
+```
+
+We then followed the same process to create cleaned test data to measure our model's performance at the end of the report.
+
+# Trend
+
+In this section, we are referring to our work done in Detrending.Rmd.
+
+The first thing we want to look at when dealing with time series data, is to check whether or not our time series is stationary. This is difficult to check, so instead we will be checking whether or not our time series data is covariance stationary, which can be done with an ADF (Augmented Dickey-Fuller) test, a KPSS (Kwiatkowski-Phillips-Schmidt-Shin) or by observing the ACF (Auto-Correlation Function) plot.
+
+We first check if the raw data is covariance stationary.
+
+```{r}
+acf(prices$spot_price_dkk, lag.max = 1000)
+```
+
+```{r}
+adf.test(prices$spot_price_dkk)
+kpss.test(prices$spot_price_dkk)
+```
+
+We observe that the two tests don't agree. The null hypothesis for the ADF test is "Not stationary", while the null hypothesis for the KPSS test is "Stationary".
+When observing the ACF plot, we can clearly see that there is high autocorrelation in the data. Hence, we trust the KPSS test here and conclude that the time series is not covariance stationary.
+
+Next step is then to try to transform the data so that it becomes stationary, since this is a necessity to assure the correctness of the models we will be using later on (ARIMA/SARIMA).
+
+To transform the data to become stationary, there are multiple possible methods to use. 
+
+We could for example try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. This can be seen in the data_transformation.Rmd file.
+
+A different approach is to first difference the data, so that every observation is subtracted from the previous observation.
+
+At last, we can try to detrend the data, by fitting a regression to the data to mimic the underlying trend, which we afterwards can subtract from the data to remove the fitted trend.
+
+We first try to remove the underlying trend with a linear regression.
+
+```{r}
+prices$t <- sequence(26808, 1)
+
+# Function for calculating sum of squared error
+sse <- function(data, par) {
+  with(data, sum((trendfn(data, par) - spot_price_dkk)^2))
+}
+```
+
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] + par[2]*t)
+}
+
+optimum <- optim(c(1, 2), sse, data=prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(prices, par_result)
+residuals_trend <- prices$spot_price_dkk - prices_trend
+
+plot(prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
+lines(prices$t, prices_trend, col="red")
+
+plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+We observe that a linear trend looks to be good at catching the trend in the somewhat "stable" first part of the data, but gets worse at catching the trend in the "volatile" last part of the data.
+
+```{r}
+acf(residuals_trend, lag.max=1000)
+```
+
+We then evaluate the detrending against using first differencing using ADF test and KPSS test.
+
+```{r}
+adf.test(residuals_trend)
+kpss.test(residuals_trend)
+adf.test(diff(prices$spot_price_dkk, 1))
+kpss.test(diff(prices$spot_price_dkk, 1))
+```
+
+Looking at the KPSS test, the linear trend does not look to have made much of a difference regarding covariance stationarity, but the KPSS test says that the first differenced data is stationary.
+
+We then tried different variants of sine functions, offset sine functions + linear trends and sums of offset since functions + linear trends, to try to find a good fit of the data, where the best underlying function we found was the following sum of 7 offset sine functions + linear trends.
+
+```{r message=FALSE, warning=FALSE}
+trendfn <- function(data, par) {
+  with(data, par[1] 
+       + par[2]*sin((t+par[3])/240) 
+       + par[4]*sin((t+par[5])/480)
+       + par[6]*sin((t+par[7])/720)
+       + par[8]*sin((t+par[9])/960)
+       + par[10]*sin((t+par[11])/1200)
+       + par[12]*sin((t+par[13])/1440)
+       + par[12]*sin((t+par[13])/1680))
+}
+
+subset_prices <- prices %>%
+  filter(t >= 15000)
+optimum <- optim(c(10000, 
+                   5000, 0, 
+                   2000, 24,
+                   1000, 48,
+                   100, 72,
+                   100, 96,
+                   100, 120,
+                   1000, 144), sse, data=subset_prices)
+par_result <- optimum[[1]]
+optimum
+
+prices_trend <- trendfn(subset_prices, par_result)
+residuals_trend <- subset_prices$spot_price_dkk - prices_trend
+
+plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
+lines(subset_prices$t, prices_trend, col="red")
+
+plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+print(sqrt(mean(residuals_trend^2)))
+```
+
+We note that we are here just trying to fit a trend on the "volatile" last part of the data. We then see that it looks like we have fitted the underlying function quite well, but we will have to check what the KPSS test says regarding stationarity.
+
+```{r}
+acf(residuals_trend, lag.max=1000)
+```
+
+```{r}
+adf.test(residuals_trend)
+kpss.test(residuals_trend)
+adf.test(diff(subset_prices$spot_price_dkk, 1))
+kpss.test(diff(subset_prices$spot_price_dkk, 1))
+```
+
+Looking at the KPSS test, it now says that the time series is almost covariance stationary, but the ACF plot still does not look too good. It is still also significantly less covariance stationary, than just using first differencing.
+
+We also tried using a nonparametric method to fit the underlying trend in the data, but this is of course not a viable solution, since it is nonparametric and will of course then not work for forecasting. One thing, we did discover from the nonparametric model, was that when we gave it a span closer to 0, the detrending with the nonparametric model, came closer and closer to a first difference.
+
+```{r}
+prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.01)
+prices_trend <- predict(prices_loess, prices$t)
+
+plot(prices$t, prices$spot_price_dkk, main="Nonparametric fit", type='l')
+lines(prices$t, prices_trend, col='red', lwd=2)
+
+plot(prices$t, prices$spot_price_dkk - prices_trend, main="Residuals/detrend", type='l')
+```
+
+```{r}
+plot(diff(prices$spot_price_dkk, 1), main="First Differenced", type="l")
+```
+
+This made us decide on using first differencing to transform our data to become covariance stationary.
+
+# Seasonality
+
+# Forecasting
+
+# Results
+

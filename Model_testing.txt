@@ -1,0 +1,13 @@
+(1,1,0)(0,0,0)
+(24,1,0)(1,0,0)(24)
+(24,1,0)(7,0,0)(24)
+(24,1,0)(7,1,0)(24)
+(24,1,1)(7,1,0)(24)
+(24,1,1)(7,1,1)(24)
+(24,1,24)(7,1,7)(24)
+
+Take best performing models and add exogenous variables.
+
+Take best performing models and cut off "stable" data.
+
+Take best performing models and add a cut-off dummy variable with value 0 indicating "stable" data and value 1 indicating "volatile" data.
