@@ -37,6 +37,7 @@ prod <- prod %>%
   filter(price_area == "DK1") %>%
   arrange(hour_utc)
 
+prices["t"] <- 1:length(prices$spot_price_dkk)
 prices["Hour"] <- hour(prices$hour_utc)
 prices["Wday"] <- wday(prices$hour_utc, label=T)
 prices["Week"] <- week(prices$hour_utc)
@@ -126,10 +127,11 @@ qqline(AR1$residuals)
 
 AR(1) med seasonality og first differencing.
 ```{r}
-AR1 <- arima(x=prices$spot_price_dkk, 
+AR1 <- arima(x=data$spot_price_dkk, 
              order=c(1, 1, 0), 
              seasonal = list(order=c(1, 1, 0), period=24))
 summary(AR1)
+
 plot(prices$spot_price_dkk, type="l", xlim=c(25000, 27500))
 lines(x=26809:27408 , y=as.data.frame(forecast(AR1, h=600))[,1], col="red")
 
@@ -206,11 +208,11 @@ qqline(AR1$residuals)
 
 SARIMA(24, 1, 0)(7, 0, 0)(24) med metode = conditional sum of squares, ellers sker der en fejl under numerisk optimering.
 ```{r}
-#fix_vec_AR <- c(rep(0, 23), NA)
-fix_vec_AR <- c(rep(NA, 24))
+fix_vec_AR <- c(rep(0, 23), NA)
+#fix_vec_AR <- c(rep(NA, 24))
 fix_vec_MA <- c()
-#fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
-fix_vec_SAR <- c(rep(NA, 7))
+fix_vec_SAR <- c(NA, NA, 0, 0, 0, 0, NA)
+#fix_vec_SAR <- c(rep(NA, 7))
 fix_vec_SMA <- c()
 AR1 <- arima(x=prices$spot_price_dkk, 
              order=c(24, 1, 0), 
@@ -236,6 +238,7 @@ hist(AR1$residuals, breaks=50)
 qqnorm(AR1$residuals)
 qqline(AR1$residuals)
 ```
+
 
 SARIMA(1, 1, 24)(0, 0, 7)(24)
 ```{r}
@@ -335,32 +338,34 @@ plot(prices$spot_price_dkk - as.data.frame(fitted(fit_garch))[,1], type="l")
 
 Funktion til forecast
 ```{r}
-forecast_func <- function(days_ahead, 
+forecast_func <- function(days_ahead, data,
                           fix_vec_AR, d, fix_vec_MA, 
                           fix_vec_SAR, D, fix_vec_SMA,
                           Tperiod,
-                          plotbool) {
-  training_data <- prices$spot_price_dkk[1:(26808-24*days_ahead)]
-  
-  validation_data <- prices$spot_price_dkk[(length(training_data)+1):26808]
-  
-  subset_training_data <-
-    prices$spot_price_dkk[(length(training_data)-24*7-50):length(training_data)]
+                          plotbool,
+                          set_coefs) {
+  training_data <- data[1:(length(data)-24*days_ahead)]
+  validation_data <- data[(length(training_data)+1):length(data)]
+  subset_training_data <- data[(length(training_data)-24*7-50):length(training_data)]
   
   forecasts <- c()
   
   start <- Sys.time()
-  AR_f <- arima(x=training_data, 
-                order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
-                fixed = c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA),
-                seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
-                                period=Tperiod),
-                include.mean = F,
-                method="CSS")
-  AR_f_coef <- AR_f$coef
+  
+  AR_f_coef <- set_coefs
+  if(is.null(set_coefs)) {
+    AR_f <- arima(x=training_data, 
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA),
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    AR_f_coef <- AR_f$coef
+  }
   
   for (i in 1:days_ahead){
-    AR_f <- arima(x=subset_training_data, 
+    AR_f <- arima(x=subset_training_data,
                   order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
                   fixed = AR_f_coef,
                   seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
@@ -386,20 +391,21 @@ forecast_func <- function(days_ahead,
   }
   return(list(forecasts, residuals, RMSE, AR_f_coef))
 }
-
 ```
 
-## ARIMA(1, 0, 0)(0, 0, 0)(0)
+## ARIMA(1, 1, 0)(0, 0, 0)(0)
 ```{r}
-outputlist <- forecast_func(28, 
-                            c(NA), 0, c(), 
+outputlist <- forecast_func(28, prices$spot_price_dkk,
+                            c(NA), 1, c(), 
                             c(), 0, c(), 
                             24,
-                            plotbool=T)
+                            plotbool=T,
+                            set_coefs=NULL)
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
 
 plot(residuals, type="l")
 kpss.test(residuals)
@@ -411,15 +417,38 @@ qqline(residuals)
 
 ## ARIMA(24, 1, 0)
 ```{r}
-outputlist <- forecast_func(28, 
+outputlist <- forecast_func(28, prices$spot_price_dkk, 
                             c(rep(0, 23), NA), 1, c(), 
                             c(), 0, c(), 
                             24,
-                            plotbool=T)
+                            plotbool=T,
+                            set_coefs=NULL)
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(), 
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
 
 plot(residuals, type="l")
 kpss.test(residuals)
@@ -432,15 +461,38 @@ qqline(residuals)
 
 ## SARIMA(24, 1, 0)(7, 0, 0)(24)
 ```{r}
-outputlist <- forecast_func(28, 
+outputlist <- forecast_func(28, prices$spot_price_dkk, 
                             c(rep(0, 23), NA), 1, c(), 
                             c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
                             24,
-                            plotbool=T)
+                            plotbool=T,
+                            set_coefs=NULL)
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(rep(NA, 7)), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
 
 plot(residuals, type="l")
 kpss.test(residuals)
@@ -453,15 +505,17 @@ qqline(residuals)
 
 ## SARIMA(1, 1, 0)(7, 0, 0)(24)
 ```{r}
-outputlist <- forecast_func(28, 
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
                             c(NA), 1, c(), 
                             c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
                             24,
-                            plotbool=T)
+                            plotbool=T,
+                            set_coefs=NULL)
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
 
 plot(residuals, type="l")
 kpss.test(residuals)
@@ -470,14 +524,264 @@ hist(residuals, breaks=50)
 qqnorm(residuals)
 qqline(residuals)
 ```
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(NA), 1, c(), 
+                            c(rep(NA, 7)), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+## SARIMA(24, 1, 0)(7, 1, 0)(24)
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 24)), 1, c(), 
+                            c(rep(NA, 7)), 1, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## SARIMA(24, 1, 1)(7, 0, 0)(24)
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(0, 23), NA), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(0, 23), NA), 1, c(NA), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+## SARIMA(24, 1, 1)(7, 0, 1)(24)
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(0, 23), NA), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 23), NA), 1, c(NA), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
 
 ## SARIMA(24, 1, 24)(7, 0, 0)(24)
 ```{r}
-outputlist <- forecast_func(28, 
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
                             c(rep(NA, 24)), 1, c(rep(NA, 24)), 
-                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
+                            c(rep(NA, 7)), 0, c(),
                             24,
-                            plotbool=T)
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## SARIMA(24, 1, 24)(7, 0, 7)(24)
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 24)), 1, c(rep(NA, 24)), 
+                            c(rep(NA, 7)), 0, c(rep(NA, 7)),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+# Auto arima test
+```{r}
+autofit <- auto.arima(prices$spot_price_dkk, max.p=24, max.q=24, max.P=7, max.Q=7)
+summary(autofit)
+```
+
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk, 
+                            c(NA, NA), 1, c(NA, NA), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=autofit$coef)
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
@@ -490,6 +794,38 @@ hist(residuals, breaks=50)
 qqnorm(residuals)
 qqline(residuals)
 ```
+
+
+Auto arima with initial model being our best model.
+```{r}
+autofit <- auto.arima(prices$spot_price_dkk, max.p=24, max.q=24, max.P=7, max.Q=7,
+                      start.p=24, start.q=1, start.P=7, start.Q=1)
+summary(autofit)
+```
+
+
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk, 
+                            c(rep(NA, 23)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=autofit$coef)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+
 
 
 
