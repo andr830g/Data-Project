@@ -36,14 +36,32 @@ con <- con %>%
 prod <- prod %>%
   filter(price_area == "DK1") %>%
   arrange(hour_utc)
+```
 
+```{r}
 prices["t"] <- 1:length(prices$spot_price_dkk)
 prices["Hour"] <- hour(prices$hour_utc)
 prices["Wday"] <- wday(prices$hour_utc, label=T)
 prices["Week"] <- week(prices$hour_utc)
 prices["Month"] <- month(prices$hour_utc)
 prices["Year"] <- year(prices$hour_utc)
+
+prices["Sun"] <- ifelse(prices$Wday=="Søn", 1, 0)
+prices["Sat"] <- ifelse(prices$Wday=="Lør", 1, 0)
+prices["Fri"] <- ifelse(prices$Wday=="Fre", 1, 0)
+prices["Thu"] <- ifelse(prices$Wday=="Tor", 1, 0)
+prices["Wed"] <- ifelse(prices$Wday=="Ons", 1, 0)
+prices["Tue"] <- ifelse(prices$Wday=="Tir", 1, 0)
+prices["Mon"] <- ifelse(prices$Wday=="Man", 1, 0)
+
+prices["Cutoff"] <- ifelse(prices$t >= 15000, 1, 0)
+
+prices["Winter"] <- ifelse(prices$Month %in% c(12, 1, 2), 1, 0)
+prices["Spring"] <- ifelse(prices$Month %in% c(3, 4, 5), 1, 0)
+prices["Summer"] <- ifelse(prices$Month %in% c(6, 7, 8), 1, 0)
+prices["Autumn"] <- ifelse(prices$Month %in% c(9, 10, 11), 1, 0)
 ```
+
 
 
 ```{r}
@@ -393,7 +411,93 @@ forecast_func <- function(days_ahead, data,
 }
 ```
 
-## ARIMA(1, 1, 0)(0, 0, 0)(0)
+
+Funktion til forecast med eksogene variable
+```{r}
+forecast_func_xreg <- function(days_ahead, data, xogen,
+                          fix_vec_AR, d, fix_vec_MA, 
+                          fix_vec_SAR, D, fix_vec_SMA,
+                          Tperiod,
+                          plotbool,
+                          set_coefs) {
+  training_data <- data[1:(length(data)-24*days_ahead)]
+  validation_data <- data[(length(training_data)+1):length(data)]
+  subset_training_data <- data[(length(training_data)-24*7-50):length(training_data)]
+  
+  xogen_training <- xogen[1:length(training_data), ]
+  xogen_validation <- xogen[(length(training_data)+1):length(data), ]
+  xogen_subset <- xogen[(length(training_data)-24*7-50):length(training_data), ]
+  
+  forecasts <- c()
+  
+  start <- Sys.time()
+  
+  AR_f_coef <- set_coefs
+  
+  fix_vec_xreg <- rep(NA, ncol(xogen))
+  if(is.null(set_coefs)) {
+    model <- arima(x=training_data, 
+                  xreg=matrix(xogen_training, ncol=ncol(xogen), byrow=F),
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA, fix_vec_xreg),
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    
+    AR_f <- Arima(y=training_data,
+                  model=model,
+                  xreg=matrix(xogen_training, ncol=ncol(xogen), byrow=F),
+                  include.mean=F)
+    
+    AR_f_coef <- AR_f$coef
+  }
+  
+  for (i in 1:days_ahead){
+    model <- arima(x=subset_training_data,
+                  xreg=matrix(xogen_subset, ncol=ncol(xogen), byrow=F),
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = AR_f_coef,
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    
+    AR_f <- Arima(y=subset_training_data,
+                  model=model,
+                  xreg=matrix(xogen_subset, ncol=ncol(xogen), byrow=F),
+                  include.mean = F)
+    
+    forecasts <- c(forecasts, 
+                   as.data.frame(forecast(AR_f,
+                                          xreg=matrix(xogen_validation[(24*(i-1)+1):(24*i), ],
+                                                      ncol=ncol(xogen), byrow=F)))[,1])
+    
+    xogen_subset <- rbind(xogen_subset, xogen_validation[(24*(i-1)+1):(24*i), ])
+    subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
+    
+  }
+  end <- Sys.time()
+  print(end-start)
+  residuals <- validation_data-forecasts
+  RMSE <- sqrt(mean(residuals^2))
+  
+  print(RMSE)
+  if(plotbool == T) {
+    plot(training_data, type="l", 
+         xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500),
+         main="Forecasts", xlab="Time", ylab="Price")
+    lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
+    lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
+    legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
+  }
+  return(list(forecasts, residuals, RMSE, AR_f_coef))
+}
+```
+
+
+
+## ARIMA(1, 1, 0)(0, 0, 0)(24)
 ```{r}
 outputlist <- forecast_func(28, prices$spot_price_dkk,
                             c(NA), 1, c(), 
@@ -415,7 +519,7 @@ qqnorm(residuals)
 qqline(residuals)
 ```
 
-## ARIMA(24, 1, 0)
+## ARIMA(24, 1, 0)(0, 0, 0)(0)
 ```{r}
 outputlist <- forecast_func(28, prices$spot_price_dkk, 
                             c(rep(0, 23), NA), 1, c(), 
@@ -767,13 +871,393 @@ qqnorm(residuals)
 qqline(residuals)
 ```
 
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + Weekend
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + Week day
+```{r}
+xregs <- cbind(prices$Tue, prices$Wed, prices$Thu, prices$Fri, prices$Sat, prices$Sun)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + seasons + weekend
+```{r}
+xregs <- cbind(prices$Summer, prices$Winter, prices$Spring, prices$Sat, prices$Sun)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + wind
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+               prod$onshore_wind_power, prod$offshore_wind_power)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + solar
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+               prod$onshore_wind_power, prod$offshore_wind_power,
+               prod$solar_power)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + fossile
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + fossile + wind
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + wind + fossile + consumption
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$total_load)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + wind + fossile + biomass
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + wind + fossile + biomass + waste
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass, prod$waste)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(0, 0, 0)(0) + weekend + wind + fossile + biomass + waste + exchange
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass, prod$waste,
+              prod$exchange_great_belt, prod$exchange_nordic_countries, prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(1, 1, 0)(0, 0, 0)(0) + weekend + wind + fossile + biomass + waste + exchange
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass, prod$waste,
+              prod$exchange_great_belt, prod$exchange_nordic_countries, prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(NA), 1, c(), 
+                            c(), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 0)(7, 0, 0)(24) + weekend + wind + fossile + biomass + waste + exchange
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass, prod$waste,
+              prod$exchange_great_belt, prod$exchange_nordic_countries, prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(0, 23), NA), 1, c(), 
+                            c(NA, NA, 0, 0, 0, 0, NA), 0, c(),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass, prod$waste,
+              prod$exchange_great_belt, prod$exchange_nordic_countries, prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
 
 # Auto arima test
 ```{r}
 autofit <- auto.arima(prices$spot_price_dkk, max.p=24, max.q=24, max.P=7, max.Q=7)
 summary(autofit)
 ```
-
 
 ```{r}
 outputlist <- forecast_func(28, prices$spot_price_dkk, 
@@ -786,6 +1270,7 @@ forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
 
 plot(residuals, type="l")
 kpss.test(residuals)
@@ -823,6 +1308,20 @@ hist(residuals, breaks=50)
 qqnorm(residuals)
 qqline(residuals)
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
