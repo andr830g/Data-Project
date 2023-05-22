@@ -16,6 +16,13 @@ output:
     toc_depth: '5'
 ---
 
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tseries)
+library(lubridate)
+library(Kendall)
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 #knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
@@ -90,7 +97,7 @@ We first check if the raw data is covariance stationary.
 acf(prices$spot_price_dkk, lag.max = 1000)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 adf.test(prices$spot_price_dkk)
 kpss.test(prices$spot_price_dkk)
 ```
@@ -146,7 +153,7 @@ acf(residuals_trend, lag.max=1000)
 
 We then evaluate the detrending against using first differencing using ADF test and KPSS test.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 adf.test(residuals_trend)
 kpss.test(residuals_trend)
 adf.test(diff(prices$spot_price_dkk, 1))
@@ -198,7 +205,7 @@ We note that we are here just trying to fit a trend on the "volatile" last part 
 acf(residuals_trend, lag.max=1000)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 adf.test(residuals_trend)
 kpss.test(residuals_trend)
 adf.test(diff(subset_prices$spot_price_dkk, 1))
@@ -227,7 +234,113 @@ This made us decide on using first differencing to transform our data to become 
 
 # Seasonality
 
+Time series data often experiences some sort of seasonality caused by varying factors over specific time periods. To "catch" possible seasonality when creating models for forecasting, we want to test in what time periods the data experiences seasonality.
+
+We start by checking for hourly and daily seasonality by plotting the mean prices grouped by hour and weekday. We then see if we can find a recurring predictable pattern.
+
+```{r message=FALSE, warning=FALSE}
+prices %>%
+  group_by(Hour, Wday) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=hour, 
+             y=mean_price, 
+             group=factor(day), 
+             color=factor(day))) + 
+  geom_line()
+```
+
+When looking at the plot, it is very clear that the prices are at their highest at around 6 AM and around 5 PM as well as the prices being at their lowest at around 2 AM and around 12 PM. This pattern seems recurring and predictable. Hence, we will note that the data experiences hourly seasonality.
+
+For daily seasonality, it looks as if there is a recurring pattern of the prices being at their highest on mondays and tuesdays and the prices being at their lowest on saturdays and sundays. We will check this over again by now checking for daily and weekly/monthly seasonality by plotting the mean prices grouped by weekday and month.
+
+```{r message=FALSE, warning=FALSE}
+prices %>%
+  group_by(Wday, Month) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=day, 
+             y=mean_price, 
+             group=factor(Month), 
+             color=factor(Month))) + 
+  geom_line()
+```
+
+When looking at this plot, we again see the same pattern regarding daily seasonality. Hence, we will note that the data experiences daily seasonality.
+
+For weekly/monthly seasonality, it looks like there is a recurring pattern of the prices being at their highest in the summer months and the prices being at their lowest in the winter months, with the exception of December. We will again check this one more time by now plotting the mean prices grouped by month and weekday.
+
+```{r message=FALSE, warning=FALSE}
+prices %>%
+  group_by(Wday, Month) %>%
+  summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
+  ggplot(aes(x=month, 
+             y=mean_price, 
+             group=factor(day), 
+             color=factor(day))) + 
+  geom_line()
+```
+
+This gives us a much clearer view of the weekly/monthly seasonality, and we can confirm what we saw on the previous plot. Hence, the data experiences weekly/monthly seasonality.
+
 # Forecasting
 
 # Results
+
+```{r include=FALSE}
+Result_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE = double(), stringsAsFactors = FALSE)
+```
+
+```{r echo=FALSE}
+Result_table <- rbind(Result_table, list("Linear Regression", "", "", "", "", 499.7))
+Result_table <- rbind(Result_table, list("Sinusoidal Regression", "", "", "", "", 847.4))
+Result_table <- rbind(Result_table, list("Sum of Sinusoidal Regressions", "", "", "", "", 1535.0))
+Result_table <- rbind(Result_table, list("ARIMA(1,1,0)", "", "", "", "", 431.5))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "24th", "", "", "", 417.5))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "", 371.8))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,0)", "24th", "(7,0,0)", "1st, 2nd, 7th", "", 380.9))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,0)", "", "(7,0,0)", "", "", 362.7))
+Result_table <- rbind(Result_table, list("SARIMA(1,1,0)", "", "(7,0,0)", "1st, 2nd, 7th", "", 388.8))
+Result_table <- rbind(Result_table, list("SARIMA(1,1,0)", "", "(7,0,0)", "", "", 368.0))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,0)", "", "(7,1,0)", "", "", 363.7))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,0)", "", "", 369.2))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "24th", "(7,0,0)", "", "", 362.5))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "24th", "(7,0,0)", "1st, 2nd, 7th", "", 381.2))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "", 344.0))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "24th", "(7,0,1)", "", "", 362.0))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "1st, 2nd, 7th", "", 356.7))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "24th", "(7,0,1)", "1st, 2nd, 7th", "", 356.7))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,24)", "", "(7,0,0)", "", "", 346.6))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,24)", "", "(7,0,7)", "", "", 361.2))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend", 366.3))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend", 341.2))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekdays", 365.0))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Season", 366.4))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind", 316.8))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, Solar", 318.6))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, FossilProduce", 347.7))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce", 305.8))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Consumption", 305.2))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass", 302.4))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste", 299.4))
+Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 276.1))
+Result_table <- rbind(Result_table, list("ARIMA(1,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 303.5))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,0)", "24th", "(7,0,0)", "1st, 2nd, 7th", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 311.8))
+Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 263.9))
+colnames(Result_table) <- c("model", "free_arima", "seasonal", "free_seasonal", "xreg", "RMSE")
+Result_table
+```
+
+```{r include=FALSE}
+CV_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE_subset_1 = double(), RMSE_subset_2 = double(), RMSE_subset_3 = double(), RMSE_subset_4 = double(), mean_RMSE = double(), sd_RMSE = double(), stringsAsFactors = FALSE)
+```
+
+```{r echo=FALSE}
+CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "", 441.3, 704.8, 442.1, 371.0, 489.8, 147.2))
+CV_table <- rbind(CV_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "", 393.3, 661.9, 391.7, 342.1, 447.3, 145.1))
+CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind", 354.6, 674.8, 405.2, 364.3, 449.7, 151.6))
+CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.9, 543.2, 328.5, 364.3, 369.2, 127.1))
+CV_table <- rbind(CV_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 233.0, 539.5, 316.7, 337.7, 356.7, 130.0))
+CV_table <- rbind(CV_table, list("ARIMA(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.5, 533.7, 345.2, 359.4, 369.7, 121.5))
+colnames(CV_table) <- c("model", "free_arima", "seasonal", "free_seasonal", "xreg", "RMSE_subset_1", "RMSE_subset_2", "RMSE_subset_3", "RMSE_subset_4", "mean_RMSE", "sd_RMSE")
+CV_table
+```
 

@@ -29,6 +29,7 @@ prices %>%
 
 ```{r}
 prices <- prices %>%
+  filter(price_area == "DK1") %>%
   arrange(hour_utc)
 
 con <- con %>%
@@ -53,8 +54,7 @@ prices["Year"] <- year(prices$hour_utc)
 ## Seasonality
 
 ```{r}
-prices_seas <- prices %>%
-  filter(price_area == "DK1")
+prices_seas <- prices
 
 plot(prices_seas$spot_price_dkk, type='line')
 ```
@@ -62,7 +62,6 @@ plot(prices_seas$spot_price_dkk, type='line')
 The mean price for each hour has large variations so we might suspect some hourly seasonality.
 ```{r}
 prices_seas <- prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Hour) %>%
   summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
 
@@ -72,7 +71,6 @@ head(prices_seas, n=24)
 The mean price for each weekday has large variation so we might suspect weekday seasonality.
 ```{r}
 prices_seas <- prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Wday) %>%
   summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
 
@@ -81,7 +79,6 @@ head(prices_seas, n=7)
 
 ```{r}
 prices_seas <- prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Week) %>%
   summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
 
@@ -90,7 +87,6 @@ head(prices_seas, n=52)
 
 ```{r}
 prices_seas <- prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Year) %>%
   summarize(mean = mean(spot_price_dkk), sd = sd(spot_price_dkk))
 
@@ -100,7 +96,7 @@ head(prices_seas, n=5)
 
 ```{r}
 prices %>%
-  filter(price_area == "DK1", hour_utc >= "2020-01", hour_utc < "2020-02") %>%
+  filter(hour_utc >= "2020-01", hour_utc < "2020-02") %>%
   group_by(Hour) %>%
   ggplot(aes(x=date(hour_utc), 
              y=spot_price_dkk, 
@@ -114,7 +110,6 @@ prices %>%
 The mean price for each hour grouped by week day shows that the price varies greatly through out a day indication hourly seasonality. We also see a similar price pattern through out a day for all week days.
 ```{r}
 prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Hour, Wday) %>%
   summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
   ggplot(aes(x=hour, 
@@ -129,7 +124,6 @@ prices %>%
 The mean price for each week day varies greatly through out a year.
 ```{r}
 prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Wday, Week) %>%
   summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
   ggplot(aes(x=week, 
@@ -144,7 +138,6 @@ prices %>%
 
 ```{r}
 prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Wday, Month) %>%
   summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
   ggplot(aes(x=day, 
@@ -157,7 +150,6 @@ prices %>%
 Similar to weeks, then the price varies for each month. The pattern is similar for each week day for each month during a year.
 ```{r}
 prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Wday, Month) %>%
   summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
   ggplot(aes(x=month, 
@@ -171,7 +163,6 @@ prices %>%
 
 ```{r}
 prices %>%
-  filter(price_area == "DK1") %>%
   group_by(Month, Year) %>%
   summarize(hour=Hour, day=Wday, week=Week, month=Month, year=Year, mean_price=mean(spot_price_dkk)) %>%
   ggplot(aes(x=month, 
