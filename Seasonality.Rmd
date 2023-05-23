@@ -1,5 +1,5 @@
 ---
-title: "Seasonality and trend"
+title: "Seasonality"
 author: "Andreas Hansen"
 date: "2023-02-20"
 output: html_document
@@ -215,53 +215,4 @@ acf(prices_seas$spot_price_dkk, lag.max=50)
 
 Det er sværere at se et præcist gentagende mønster nu på ugentlig basis (hver 4. observation) og på månedlig basis (hver 12. observation).
 
-## Trends
 
-```{r}
-prices_trend <- prices %>%
-  filter(price_area == "DK1")
-```
-
-```{r}
-plot(prices_trend$spot_price_dkk, type="line")
-```
-
-```{r}
-plot(prod$biomass, type="line")
-```
-
-```{r}
-plot(prod$fossil_gas, type="line")
-```
-
-```{r}
-plot(prod$fossil_hard_coal, type="line")
-```
-
-```{r}
-plot(prod$fossil_oil, type="line")
-```
-
-```{r}
-plot(prod$hydro_power, type="line")
-```
-
-```{r}
-plot(prod$solar_power, type="line")
-```
-
-```{r}
-plot(prod$onshore_wind_power, type="line")
-```
-
-```{r}
-plot(prod$offshore_wind_power, type="line")
-```
-
-```{r}
-plot(con$flex_settled_consumption, type="line")
-```
-
-```{r}
-plot(con$hourly_settled_consumption, type="line")
-```

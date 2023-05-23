@@ -496,7 +496,7 @@ forecast_func <- function(days_ahead, data,
   residuals <- validation_data-forecasts
   RMSE <- sqrt(mean(residuals^2))
   
-  print(RMSE)
+  print(c("RMSE:", RMSE))
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
@@ -580,7 +580,7 @@ forecast_func_xreg <- function(days_ahead, data, xogen,
   residuals <- validation_data-forecasts
   RMSE <- sqrt(mean(residuals^2))
   
-  print(RMSE)
+  print(c("RMSE:", RMSE))
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
@@ -1740,7 +1740,7 @@ test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
 
 
 ## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
-28 days ahead forecast
+Day-ahead forecast of 28 days
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*28), ])
 full_prod <- rbind(prod, test_prod[1:(24*28), ])
@@ -1772,7 +1772,7 @@ qqline(residuals)
 ```
 
 
-59 days ahead forecast
+Day-ahead forecast of 59 days
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*59), ])
 full_prod <- rbind(prod, test_prod[1:(24*59), ])
