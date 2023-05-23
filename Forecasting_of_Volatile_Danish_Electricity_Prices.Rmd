@@ -118,6 +118,30 @@ In this section, we are referring to our work done in Detrending.Rmd.
 
 The first thing we want to look at when dealing with time series data, is to check whether or not our time series is stationary. This is difficult to check, so instead we will be checking whether or not our time series data is covariance stationary, which can be done with an ADF (Augmented Dickey-Fuller) test, a KPSS (Kwiatkowski-Phillips-Schmidt-Shin) or by observing the ACF (Auto-Correlation Function) plot.
 
+The Dickey Fuller test for a simple AR(1) model:
+$$
+\begin{split}
+  y_t &= \rho y_{t-1} + u_t\\
+  \Delta y_t &= (\rho-1) y_{t-1} + u_t = \gamma y_{t-1} + u_t
+\end{split}
+$$
+The null states that a unit root is present $\rho=1 \Rightarrow \gamma=0$, the alternative states that it's stationary.
+
+
+The KPSS test, tests for stationarity around a trend without the presence of a unit root process.
+$$
+\begin{split}
+  y_t &= \alpha + \beta t + z_t\\
+  z_t &= r_t + u_t\\
+  r_t &= r_{t-1} + v_t
+\end{split}
+$$
+
+For time series $y_t$, residual $z_t$, short term memory $u_t$ and long term memory unit root $r_t$ where $r_0=0$ and $v_t$ i.i.d. with mean 0 and variance $\sigma^2_v$.
+
+The null states that $y_t$ is trend stationary which implies $\sigma^2_v=0$, the alternative states that a unit root is present.
+
+
 We first check if the raw data is covariance stationary.
 
 ```{r}
@@ -136,7 +160,7 @@ Next step is then to try to transform the data so that it becomes stationary, si
 
 To transform the data to become stationary, there are multiple possible methods to use. 
 
-We could for example try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. This can be seen in the data_transformation.Rmd file.
+We could for example try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. We tried a logarithmic transformation where the log of negative values are replaced by 0, but this gave many outliers and structural breaks. This can be seen in the data_transformation.Rmd file.
 
 A different approach is to first difference the data, so that every observation is subtracted from the previous observation.
 
@@ -320,7 +344,14 @@ First of all, we needed to generate some naive benchmark models, so we had somet
 
 The results of these benchmark models can be seen in the Results table in the section "Results", where we could observe that the linear regression gave the best results.
 
-We then created the function below to generate the day-ahead forecasts using different auto-regressive models such as the ARIMA/SARIMA.
+We then created the function below to generate the day-ahead forecasts using different auto-regressive models such as the ARIMA/SARIMA. The SARIMA(p, d, q)(P, D, Q)(T) is defined as:
+
+$$
+\Delta_d y_t = \alpha + \sum_{i=1}^{p} \beta_i \Delta_d y_{t-i} + \sum_{i=1}^{q} \gamma_i \Delta_d u_{t-i} + \sum_{i=1}^{P} \zeta_i \Delta_D y_{t-T\cdot i} + \sum_{i=1}^{Q} \Delta_D \eta_i u_{t-T\cdot i} + \Delta_d u_t
+$$
+
+For time series $y_t$, constants $\alpha, \beta_i, \gamma_i, \zeta_i, \eta_i$ and residual $u_t$ with mean 0 and variance $\sigma^2$.
+
 
 ```{r}
 forecast_func <- function(days_ahead, data,
