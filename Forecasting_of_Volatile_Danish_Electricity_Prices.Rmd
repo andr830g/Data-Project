@@ -29,28 +29,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-# Introduction
-
-Note that we are only focusing on forecasting the electricity prices of DK1.
-
-# Data cleaning
-
-In this section, we are referring to our work done in data_cleaning.qmd.
-
-We have gathered our raw data from www.energidataservice.dk, where our data was in a .JSON file format.
-
-After reading the data, we made sure that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values to be able to use them. In the "Consumption" data set, we only had 3 variables, but still a lot of missing values. To keep as much information from the "Consumption" data set, we then transformed all the missing values to 0's.
-
-After having cleaned the columns, we then moved on to the rows, where we found out that the start and end times of our 3 data sets did not match. All the data sets have the same first observation regarding time, but the "Consumption" data set, were missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
-
-We then had a strange problem where there was 3 somewhat random observations that were missing from the "Production" data set. We then had to add the previous observation's values to the missing rows to fill in the missing observations.
-We are aware that this modification, can lead to incorrect results, but we had to fix this problem to avoid errors later on.
-
-At last, we also divided the columns in the "Consumption" data set with 1000, since we found out that the electricity used in the "Consumption" data set was in kwh, where we had electricity in Mwh in the other data sets.
-
-Having the data in a .JSON file format made reading the data very slow, so we decided to save the cleaned data as a .csv file format, which made it much faster to read.
-
-```{r include=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 prices <- read.csv("data/price_clean.csv") %>%
   mutate(
          hour_utc = lubridate::as_datetime(hour_utc),
@@ -60,7 +39,7 @@ con <- read.csv("data/con_clean.csv")
 prod <- read.csv("data/prod_clean.csv")
 ```
 
-```{r include=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 prices <- prices %>%
   arrange(hour_utc) %>%
   filter(price_area == "DK1")
@@ -79,12 +58,58 @@ prices["Month"] <- month(prices$hour_utc)
 prices["Year"] <- year(prices$hour_utc)
 ```
 
-```{r include=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 prices <- prices %>%
   filter(price_area == "DK1")
 ```
 
+
+# Introduction
+
+Great focus has been cast on the commodity sector during the period 2021 to present day, as the danish society has seen large volatility in electricity and gas prices. In the period, the electricity spot price has been affected by the lack of wind and worldwide consequences of inflation, freight chaos and the Russian-Ukraine war causing record high prices for the consumers.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+plot(prices$spot_price_dkk, type="l", main="Spot price in DK1", xlab="", ylab="DKK per MWh", xaxt="n")
+axis(side=1, 
+     at=c(1, 1682, 6702, 10730, 13404, 18842, 20106, 24098, 26808), 
+     labels=c("2020-01-01", "Lockdown", "2020-10-06", "Evergreen","2021-07-12", "Invasion", "2022-04-17", "CPI peak", "2023-01-21"), 
+     las=2)
+abline(v=1682, col="red", lty=2, lwd=2)
+abline(v=10730, col="red", lty=2, lwd=2)
+abline(v=18842, col="red", lty=2, lwd=2)
+abline(v=24098, col="red", lty=2, lwd=2)
+```
+
+Above, electricity spot prices in DK1 are shown for the period 2020-01-01 to 2023-01-21. Red lines indicate the danish lockdown due to COVID-19 2020-03-11, the Evergreen blockade of the Suez Canal 2021-03-23, the Russian invasion of Ukraine 2022-02-24 and the danish peak inflation of 10.1% in October 2022.
+
+This project is focusing exclusively in spot prices in price area DK1 which is Denmark east of the Great belt and the project will analyze time series data of electricity spot prices to find ARIMA models which are better than a naive benchmark model.
+
+The data consists of three datasets. The first contains electricity spot prices per hour in DKK pr. MWh over the period 2020-01-01 hour 0 (midnight) to 2023-01-31 hour 23 danish time. The price areas are Denmark east of the Great Belt (DK1), Denmark west of the great belt (DK2), Sweden southern part (SE4), Sweden area sorrounding Stockholm (SE3), Norway southern part (NO2), Germany (DE).
+
+The second contains data of electricity excahnge between Denmark and neighboring countries and danish production of electricity in MWh from fossile fuels (gas, oil, coal) and sustainable energy (biomass, offshore wind, onshore wind, hydro) and burning of waste per hour in the same time period.
+
+The third contains data on consumption in kWh from different different grid companies per hour in the period 2020-01-01 hour 0 to 2023-01-21 hour 23.
+
+
+# Data cleaning
+
+In this section, we are referring to our work done in data_cleaning.qmd.
+
+We have gathered our raw data from www.energidataservice.dk, where our data was in a .JSON file format.
+
+After reading the data, we made sure that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values to be able to use them. In the "Consumption" data set, we only had 3 variables, but still a lot of missing values. To keep as much information from the "Consumption" data set, we then transformed all the missing values to 0's.
+
+After having cleaned the columns, we then moved on to the rows, where we found out that the start and end times of our 3 data sets did not match. All the data sets have the same first observation regarding time, but the "Consumption" data set, were missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
+
+We then had a strange problem where there was 3 somewhat random observations that were missing from the "Production" data set. We then had to synthetically add the previous observation's values to the missing rows to fill in the missing observations.
+We are aware that modification of 3 out of 26808 observations can have an impact on results but we assume it's insignificant. Additionally due to the nature of time series, the observations must be present in the data for the models to work.
+
+At last, we also divided the columns in the "Consumption" data set with 1000, since we found out that the electricity used in the "Consumption" data set was in kwh, where we had electricity in Mwh in the other data sets.
+
+Having the data in a .JSON file format made reading the data very slow, so we decided to save the cleaned data as a .csv file format, which made it much faster to read.
+
 We then followed the same process to create cleaned test data to measure our model's performance at the end of the report.
+
 
 # Trend
 
