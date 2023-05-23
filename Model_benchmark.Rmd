@@ -46,13 +46,13 @@ prices["Week"] <- week(prices$hour_utc)
 prices["Month"] <- month(prices$hour_utc)
 prices["Year"] <- year(prices$hour_utc)
 
-prices["Sun"] <- ifelse(prices$Wday=="Søn", 1, 0)
-prices["Sat"] <- ifelse(prices$Wday=="Lør", 1, 0)
-prices["Fri"] <- ifelse(prices$Wday=="Fre", 1, 0)
-prices["Thu"] <- ifelse(prices$Wday=="Tor", 1, 0)
-prices["Wed"] <- ifelse(prices$Wday=="Ons", 1, 0)
-prices["Tue"] <- ifelse(prices$Wday=="Tir", 1, 0)
-prices["Mon"] <- ifelse(prices$Wday=="Man", 1, 0)
+prices["Sun"] <- ifelse(prices$Wday=="Sun", 1, 0)
+prices["Sat"] <- ifelse(prices$Wday=="Sat", 1, 0)
+prices["Fri"] <- ifelse(prices$Wday=="Fri", 1, 0)
+prices["Thu"] <- ifelse(prices$Wday=="Thu", 1, 0)
+prices["Wed"] <- ifelse(prices$Wday=="Wed", 1, 0)
+prices["Tue"] <- ifelse(prices$Wday=="Tue", 1, 0)
+prices["Mon"] <- ifelse(prices$Wday=="Mon", 1, 0)
 
 prices["Cutoff"] <- ifelse(prices$t >= 15000, 1, 0)
 
@@ -499,10 +499,10 @@ forecast_func <- function(days_ahead, data,
   print(RMSE)
   if(plotbool == T) {
     plot(training_data, type="l", 
-         xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500),
+         xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
          main="Forecasts", xlab="Time", ylab="Price")
-    lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
-    lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
+    lines(x=(length(training_data)+1):length(data) , y=forecasts, col="blue")
+    lines(x=(length(training_data)+1):length(data) , y=validation_data, col=alpha("red", 0.5))
     legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
   }
   return(list(forecasts, residuals, RMSE, AR_f_coef))
@@ -583,10 +583,10 @@ forecast_func_xreg <- function(days_ahead, data, xogen,
   print(RMSE)
   if(plotbool == T) {
     plot(training_data, type="l", 
-         xlim=c(length(training_data)-250, 26808+10), ylim=c(-500, 4500),
+         xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
          main="Forecasts", xlab="Time", ylab="Price")
-    lines(x=(length(training_data)+1):26808 , y=forecasts, col="blue")
-    lines(x=(length(training_data)+1):26808 , y=validation_data, col=alpha("red", 0.5))
+    lines(x=(length(training_data)+1):length(data) , y=forecasts, col="blue")
+    lines(x=(length(training_data)+1):length(data) , y=validation_data, col=alpha("red", 0.5))
     legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
   }
   return(list(forecasts, residuals, RMSE, AR_f_coef))
@@ -1504,7 +1504,7 @@ print(RMSE_cv)
 ```
 
 
-# Auto arima test
+# Auto arima
 ```{r}
 autofit <- auto.arima(prices$spot_price_dkk[1:(nrow(prices)-24*28)], max.p=24, max.q=24, max.P=7, max.Q=7)
 summary(autofit)
@@ -1655,7 +1655,7 @@ qqnorm(residuals)
 ```
 
 
-# Auto Arima Cross Validation
+## Auto Arima Cross Validation
 ARIMA(23, 1, 0) + weekend + fossil + wind + bio + waste + exchange
 ```{r}
 RMSE_cv <- c()
@@ -1687,6 +1687,120 @@ for(i in 1:4) {
 print(mean(RMSE_cv))
 print(sd(RMSE_cv))
 print(RMSE_cv)
+```
+
+
+# Test data
+```{r}
+test_prices <- read.csv("data/test_price_clean.csv") %>%
+  mutate(
+    hour_utc = lubridate::as_datetime(hour_utc),
+    hour_dk = lubridate::as_datetime(hour_dk),
+    spot_price_dkk = as.numeric(spot_price_dkk))
+test_con <- read.csv("data/test_con_clean.csv")
+test_prod <- read.csv("data/test_prod_clean.csv")
+```
+
+```{r}
+test_prices <- test_prices %>%
+  arrange(hour_utc) %>%
+  filter(price_area == "DK1")
+
+test_con <- test_con %>%
+  arrange(hour_utc)
+
+test_prod <- test_prod %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+```
+
+```{r}
+test_prices["t"] <- length(prices$spot_price_dkk) + 1:length(test_prices$spot_price_dkk)
+test_prices["Hour"] <- hour(test_prices$hour_utc)
+test_prices["Wday"] <- wday(test_prices$hour_utc, label=T)
+test_prices["Week"] <- week(test_prices$hour_utc)
+test_prices["Month"] <- month(test_prices$hour_utc)
+test_prices["Year"] <- year(test_prices$hour_utc)
+
+test_prices["Sun"] <- ifelse(test_prices$Wday=="Sun", 1, 0)
+test_prices["Sat"] <- ifelse(test_prices$Wday=="Sat", 1, 0)
+test_prices["Fri"] <- ifelse(test_prices$Wday=="Fri", 1, 0)
+test_prices["Thu"] <- ifelse(test_prices$Wday=="Thu", 1, 0)
+test_prices["Wed"] <- ifelse(test_prices$Wday=="Wed", 1, 0)
+test_prices["Tue"] <- ifelse(test_prices$Wday=="Tue", 1, 0)
+test_prices["Mon"] <- ifelse(test_prices$Wday=="Mon", 1, 0)
+
+test_prices["Cutoff"] <- ifelse(test_prices$t >= 15000, 1, 0)
+
+test_prices["Winter"] <- ifelse(test_prices$Month %in% c(12, 1, 2), 1, 0)
+test_prices["Spring"] <- ifelse(test_prices$Month %in% c(3, 4, 5), 1, 0)
+test_prices["Summer"] <- ifelse(test_prices$Month %in% c(6, 7, 8), 1, 0)
+test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
+```
+
+
+## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+28 days ahead forecast
+```{r}
+full_prices <- rbind(prices, test_prices[1:(24*28), ])
+full_prod <- rbind(prod, test_prod[1:(24*28), ])
+
+xregs <- cbind(full_prices$Sat, full_prices$Sun, 
+              full_prod$fossil_gas, full_prod$fossil_oil, full_prod$fossil_hard_coal,
+              full_prod$onshore_wind_power, full_prod$offshore_wind_power,
+              full_prod$biomass, full_prod$waste,
+              full_prod$exchange_great_belt, full_prod$exchange_nordic_countries, full_prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, full_prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+
+59 days ahead forecast
+```{r}
+full_prices <- rbind(prices, test_prices[1:(24*59), ])
+full_prod <- rbind(prod, test_prod[1:(24*59), ])
+
+xregs <- cbind(full_prices$Sat, full_prices$Sun, 
+              full_prod$fossil_gas, full_prod$fossil_oil, full_prod$fossil_hard_coal,
+              full_prod$onshore_wind_power, full_prod$offshore_wind_power,
+              full_prod$biomass, full_prod$waste,
+              full_prod$exchange_great_belt, full_prod$exchange_nordic_countries, full_prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(59, full_prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+plot(residuals, type="l")
+kpss.test(residuals)
+adf.test(residuals, k=1)
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
 ```
 
 
