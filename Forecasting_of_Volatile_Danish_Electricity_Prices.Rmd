@@ -19,6 +19,7 @@ output:
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
 library(tseries)
+library(forecast)
 library(lubridate)
 library(Kendall)
 library(kableExtra)
@@ -235,6 +236,8 @@ This made us decide on using first differencing to transform our data to become 
 
 # Seasonality
 
+In this section, we are referring to our work done in Seasonality.Rmd.
+
 Time series data often experiences some sort of seasonality caused by varying factors over specific time periods. To "catch" possible seasonality when creating models for forecasting, we want to test in what time periods the data experiences seasonality.
 
 We start by checking for hourly and daily seasonality by plotting the mean prices grouped by hour and weekday. We then see if we can find a recurring predictable pattern.
@@ -284,7 +287,227 @@ This gives us a much clearer view of the weekly/monthly seasonality, and we can 
 
 # Forecasting
 
+In this section and in the section "Results", we are referring to our work done in Model_benchmark.Rmd.
+
+When deciding on a method for forecasting, there is different ways you can go about it. In this project, we have decided to forecast the next 24 hours (day-ahead forecasting), without reestimating the model. Day-ahead forecasting would in the real world be enough for a company to make a bid for the upcoming day and the ARIMA/SARIMA model will also perform better when it is not trying to forecast far into the future. We decided to not reestimate the model for each day we forecast, since this would then be a very slow process, but instead just keep the estimated coefficients and give the model the next data every time to forecast the next day. We then evaluate the day-ahead forecast on validation data of the last 28 days using the Root Mean Square Error (RMSE).
+
+First of all, we needed to generate some naive benchmark models, so we had something to evaluate our different model's performance against. We used a simple linear regression, a sinusoidal regression and the best fitted sum of multiple sinusoidal regressions we found from the section "Trends", to create some very naive benchmark models. We trained the models on the data without the last 28 days and then used the last 28 days as validation data.
+
+The results of these benchmark models can be seen in the Results table in the section "Results", where we could observe that the linear regression gave the best results.
+
+We then created the function below to generate the day-ahead forecasts using different auto-regressive models such as the ARIMA/SARIMA.
+
+```{r}
+forecast_func <- function(days_ahead, data,
+                          fix_vec_AR, d, fix_vec_MA, 
+                          fix_vec_SAR, D, fix_vec_SMA,
+                          Tperiod,
+                          plotbool,
+                          set_coefs) {
+  training_data <- data[1:(length(data)-24*days_ahead)]
+  validation_data <- data[(length(training_data)+1):length(data)]
+  subset_training_data <- data[(length(training_data)-24*7-50):length(training_data)]
+  
+  forecasts <- c()
+  
+  start <- Sys.time()
+  
+  AR_f_coef <- set_coefs
+  if(is.null(set_coefs)) {
+    AR_f <- arima(x=training_data, 
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA),
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    AR_f_coef <- AR_f$coef
+  }
+  
+  for (i in 1:days_ahead){
+    AR_f <- arima(x=subset_training_data,
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = AR_f_coef,
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    forecasts <- c(forecasts, as.data.frame(forecast(AR_f, h=24))[,1])
+    subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
+  }
+  end <- Sys.time()
+  print(end-start)
+  residuals <- validation_data-forecasts
+  RMSE <- sqrt(mean(residuals^2))
+  
+  print(c("RMSE:", RMSE))
+  if(plotbool == T) {
+    plot(training_data, type="l", 
+         xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
+         main="Forecasts", xlab="Time", ylab="Price")
+    lines(x=(length(training_data)+1):length(data) , y=forecasts, col="blue")
+    lines(x=(length(training_data)+1):length(data) , y=validation_data, col=alpha("red", 0.5))
+    legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
+  }
+  return(list(forecasts, residuals, RMSE, AR_f_coef))
+}
+```
+
+We then ran this function on many different models, where chose the lags based on what we found in the section "Seasonality". Hence, some different combinations of 24 hour lags and weekly seasonal lags, equal to 168 hour lags for a seasonal lag of 7.
+
+We also tried to run some of the models where we fixed many of the coefficients to zero. For example, when looking at the results table in the section "Results", there is a column called "free_arima". If that column value says "24th", then it means that we fixed the 23 lags up until the 24th lag to 0, such that the current price only is dependent on the price 24 hours ago. The same applies for the "free_seasonal" column.
+
+Below is an example on how we ran the function, on what we found to be the best model without exogenous variables.
+
+## SARIMA(24, 1, 1)(7, 0, 1)(24)
+```{r}
+outputlist <- forecast_func(28, prices$spot_price_dkk,  
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+After having found the best model for forecasting without exogenous variables, we moved on to add exogenous variables to the models, to try to better describe the data of the prices with correlated data of the production.
+
+We then had to create the following new function for forecasting to allow adding exogenous variables.
+
+```{r}
+forecast_func_xreg <- function(days_ahead, data, xogen,
+                          fix_vec_AR, d, fix_vec_MA, 
+                          fix_vec_SAR, D, fix_vec_SMA,
+                          Tperiod,
+                          plotbool,
+                          set_coefs) {
+  training_data <- data[1:(length(data)-24*days_ahead)]
+  validation_data <- data[(length(training_data)+1):length(data)]
+  subset_training_data <- data[(length(training_data)-24*7-50):length(training_data)]
+  
+  xogen_training <- xogen[1:length(training_data), ]
+  xogen_validation <- xogen[(length(training_data)+1):length(data), ]
+  xogen_subset <- xogen[(length(training_data)-24*7-50):length(training_data), ]
+  
+  forecasts <- c()
+  
+  start <- Sys.time()
+  
+  AR_f_coef <- set_coefs
+  
+  fix_vec_xreg <- rep(NA, ncol(xogen))
+  if(is.null(set_coefs)) {
+    model <- arima(x=training_data, 
+                  xreg=matrix(xogen_training, ncol=ncol(xogen), byrow=F),
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed = c(fix_vec_AR, fix_vec_MA, fix_vec_SAR, fix_vec_SMA, fix_vec_xreg),
+                  seasonal = list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean = F,
+                  method="CSS")
+    
+    AR_f <- Arima(y=training_data,
+                  model=model,
+                  xreg=matrix(xogen_training, ncol=ncol(xogen), byrow=F),
+                  include.mean=F)
+    
+    AR_f_coef <- AR_f$coef
+  }
+  
+  for (i in 1:days_ahead){
+    model <- arima(x=subset_training_data,
+                  xreg=matrix(xogen_subset, ncol=ncol(xogen), byrow=F),
+                  order=c(length(fix_vec_AR), d, length(fix_vec_MA)), 
+                  fixed=AR_f_coef,
+                  seasonal=list(order=c(length(fix_vec_SAR), D, length(fix_vec_SMA)),
+                                  period=Tperiod),
+                  include.mean=F,
+                  method="CSS")
+    
+    AR_f <- Arima(y=subset_training_data,
+                  model=model,
+                  xreg=matrix(xogen_subset, ncol=ncol(xogen), byrow=F),
+                  include.mean = F)
+    
+    forecasts <- c(forecasts, 
+                   as.data.frame(forecast(AR_f,
+                                          xreg=matrix(xogen_validation[(24*(i-1)+1):(24*i), ],
+                                                      ncol=ncol(xogen), byrow=F)))[,1])
+    
+    xogen_subset <- rbind(xogen_subset, xogen_validation[(24*(i-1)+1):(24*i), ])
+    subset_training_data <- c(subset_training_data, validation_data[(24*(i-1)+1):(24*i)])
+    
+  }
+  end <- Sys.time()
+  print(end-start)
+  residuals <- validation_data-forecasts
+  RMSE <- sqrt(mean(residuals^2))
+  
+  print(c("RMSE:", RMSE))
+  if(plotbool == T) {
+    plot(training_data, type="l", 
+         xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
+         main="Forecasts", xlab="Time", ylab="Price")
+    lines(x=(length(training_data)+1):length(data) , y=forecasts, col="blue")
+    lines(x=(length(training_data)+1):length(data) , y=validation_data, col=alpha("red", 0.5))
+    legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
+  }
+  return(list(forecasts, residuals, RMSE, AR_f_coef))
+}
+```
+
+We then evaluated many different combinations of exogenous variables to see which exogenous variables had a positive impact on describing the data and which exogenous variables that didn't have a positive impact on describing the data or even lead to possible overfitting.
+
+It is worth noting that we didn't evaluate the different combinations of exogenous variables on the best model we found without exogenous variables, but instead a simpler ARIMA(24,1,0) model which also performed well. This was a choice we made, since the SARIMA(24,1,1)(7,0,1) took very long to fit each time, so we found the best combinations of exogenous variables for the ARIMA(24,1,0) model and then tried to use the same exogenous variables on the SARIMA(24,1,1)(7,0,1). We then observed that the best model from before with these exogenous variables was still the best model for forecasting with exogenous variables as well.
+
+Below is an example on how we ran the function, on what we found to be the best model with exogenous variables.
+
+## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+```{r}
+xregs <- cbind(prices$Sat, prices$Sun, 
+              prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
+              prod$onshore_wind_power, prod$offshore_wind_power,
+              prod$biomass, prod$waste,
+              prod$exchange_great_belt, prod$exchange_nordic_countries, prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+Hence, we found that the best model from this test on the last 28 days as validation data, was the SARIMA(24,1,1)(7,0,1) model with exogenous variables and the best somewhat simple model with exogenous variables was the ARIMA(24,1,0) model.
+
+To check that the models are not overfitted to the specific chosen last 28 days of data, we also use cross-validation on the data. To do this with time series data, we split the data into 4 different subsets, which we chose to be 3 evenly split subsets of the volatile part of the data and a 4th subset of all the volatile part of the data.
+
+The results of this cross-validation can be seen in the Cross-validation table in the section "Results", where we observed that SARIMA(24,1,1)(7,0,1) model didn't seem to be overfitted, when compared to the simpler ARIMA(24,1,0) model.
+
 # Results
+
+Below, is the results of the different models that have been evaluated. In the Results table, the models have been trained on all the training data except the last 28 days, that have been used as validation data.
+
+In the Cross-validation table, is the results from the models we ran through cross-validation.
+
+## Results table
 
 ```{r include=FALSE}
 Result_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE = double(), stringsAsFactors = FALSE)
@@ -331,6 +554,8 @@ kbl(Result_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
+## Cross-validation table
+
 ```{r include=FALSE}
 CV_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE_subset_1 = double(), RMSE_subset_2 = double(), RMSE_subset_3 = double(), RMSE_subset_4 = double(), mean_RMSE = double(), sd_RMSE = double(), stringsAsFactors = FALSE)
 ```
@@ -341,9 +566,125 @@ CV_table <- rbind(CV_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "", 393.3,
 CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind", 354.6, 674.8, 405.2, 364.3, 449.7, 151.6))
 CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.9, 543.2, 328.5, 364.3, 369.2, 127.1))
 CV_table <- rbind(CV_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 233.0, 539.5, 316.7, 337.7, 356.7, 130.0))
-CV_table <- rbind(CV_table, list("ARIMA(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.5, 533.7, 345.2, 359.4, 369.7, 121.5))
+CV_table <- rbind(CV_table, list("auto.arima(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.5, 533.7, 345.2, 359.4, 369.7, 121.5))
 colnames(CV_table) <- c("model", "free_arima", "seasonal", "free_seasonal", "xreg", "sub_RMSE_1", "sub_RMSE_2", "sub_RMSE_3", "sub_RMSE_4", "mean_RMSE", "sd_RMSE")
 kbl(CV_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
+Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted to test our model against a model that would be suggested by the auto.arima()-function from the library "forecast".
+
+The auto.arima()-function came with very different suggestions of models depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model as it's initial guess, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
+
+We then tried to use this model for day-ahead forecasting and saw that it was a lot worse than the SARIMA(24,1,1)(7,0,1) model without exogenous variables, but it was also on pair with the SARIMA(24,1,1)(7,0,1) model when exogenous variables were included.
+
+We then tried running it through cross-validation to see if the ARIMA(23,1,0) model suggested by the auto.arima()-function might have been overfitted to the chosen last 28 days of the data as validation data. The results from cross-validation on the auto.arima() model can also be seen in the Cross-validation table.
+
+As might have been expected, it looks like the ARIMA(23,1,0) model suggested by the auto.arima()-function was lucky to have performed very well on the last 28 days of the data, and generally looks to be worse than the SARIMA(24,1,1)(7,0,1) model and on pair with the very similar ARIMA(24,1,0) model. Hence, we will conclude that the best performing model from the cross-validation and model validation was the SARIMA(24,1,1)(7,0,1) model that we at last test on new test data and get the following results.
+
+# Test data
+```{r include=FALSE}
+test_prices <- read.csv("data/test_price_clean.csv") %>%
+  mutate(
+    hour_utc = lubridate::as_datetime(hour_utc),
+    hour_dk = lubridate::as_datetime(hour_dk),
+    spot_price_dkk = as.numeric(spot_price_dkk))
+test_con <- read.csv("data/test_con_clean.csv")
+test_prod <- read.csv("data/test_prod_clean.csv")
+```
+
+```{r include=FALSE}
+test_prices <- test_prices %>%
+  arrange(hour_utc) %>%
+  filter(price_area == "DK1")
+
+test_con <- test_con %>%
+  arrange(hour_utc)
+
+test_prod <- test_prod %>%
+  filter(price_area == "DK1") %>%
+  arrange(hour_utc)
+```
+
+```{r include=FALSE}
+test_prices["t"] <- length(prices$spot_price_dkk) + 1:length(test_prices$spot_price_dkk)
+test_prices["Hour"] <- hour(test_prices$hour_utc)
+test_prices["Wday"] <- wday(test_prices$hour_utc, label=T)
+test_prices["Week"] <- week(test_prices$hour_utc)
+test_prices["Month"] <- month(test_prices$hour_utc)
+test_prices["Year"] <- year(test_prices$hour_utc)
+
+test_prices["Sun"] <- ifelse(test_prices$Wday=="Sun", 1, 0)
+test_prices["Sat"] <- ifelse(test_prices$Wday=="Sat", 1, 0)
+test_prices["Fri"] <- ifelse(test_prices$Wday=="Fri", 1, 0)
+test_prices["Thu"] <- ifelse(test_prices$Wday=="Thu", 1, 0)
+test_prices["Wed"] <- ifelse(test_prices$Wday=="Wed", 1, 0)
+test_prices["Tue"] <- ifelse(test_prices$Wday=="Tue", 1, 0)
+test_prices["Mon"] <- ifelse(test_prices$Wday=="Mon", 1, 0)
+
+test_prices["Cutoff"] <- ifelse(test_prices$t >= 15000, 1, 0)
+
+test_prices["Winter"] <- ifelse(test_prices$Month %in% c(12, 1, 2), 1, 0)
+test_prices["Spring"] <- ifelse(test_prices$Month %in% c(3, 4, 5), 1, 0)
+test_prices["Summer"] <- ifelse(test_prices$Month %in% c(6, 7, 8), 1, 0)
+test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
+```
+
+## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+### Day-ahead forecast on 28 days of test data
+```{r}
+full_prices <- rbind(prices, test_prices[1:(24*28), ])
+full_prod <- rbind(prod, test_prod[1:(24*28), ])
+
+xregs <- cbind(full_prices$Sat, full_prices$Sun, 
+              full_prod$fossil_gas, full_prod$fossil_oil, full_prod$fossil_hard_coal,
+              full_prod$onshore_wind_power, full_prod$offshore_wind_power,
+              full_prod$biomass, full_prod$waste,
+              full_prod$exchange_great_belt, full_prod$exchange_nordic_countries, full_prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(28, full_prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+### Day-ahead forecast on 59 days of test data
+```{r}
+full_prices <- rbind(prices, test_prices[1:(24*59), ])
+full_prod <- rbind(prod, test_prod[1:(24*59), ])
+
+xregs <- cbind(full_prices$Sat, full_prices$Sun, 
+              full_prod$fossil_gas, full_prod$fossil_oil, full_prod$fossil_hard_coal,
+              full_prod$onshore_wind_power, full_prod$offshore_wind_power,
+              full_prod$biomass, full_prod$waste,
+              full_prod$exchange_great_belt, full_prod$exchange_nordic_countries, full_prod$exchange_continent)
+
+outputlist <- forecast_func_xreg(59, full_prices$spot_price_dkk, xregs, 
+                            c(rep(NA, 24)), 1, c(NA), 
+                            c(rep(NA, 7)), 0, c(NA),
+                            24,
+                            plotbool=T,
+                            set_coefs=NULL)
+forecasts <- outputlist[[1]]
+residuals <- outputlist[[2]]
+RMSE <- outputlist[[3]]
+AR_f_coef <- outputlist[[4]]
+print(AR_f_coef)
+
+hist(residuals, breaks=50)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+We observe that the SARIMA(24,1,1)(7,0,1) model performs exceptionally well on the new test data.
