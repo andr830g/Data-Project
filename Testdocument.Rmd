@@ -7,8 +7,17 @@ output: html_notebook
 
 ## AA
 
+Hej, jeg er glad for at vi snart er færdige.
+
+.
+
 # B
 
 # C
+
+Det bliver
+godt 
+med sommerferie
+yay
 
 # D
