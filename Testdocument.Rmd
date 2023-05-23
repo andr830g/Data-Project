@@ -4,6 +4,13 @@ output: html_notebook
 ---
 
 # A
+Hej jeg er afsnit A
+
+Dette er en linje
+
+
+
+Dette er mange linjer
 
 ## AA
 
@@ -12,6 +19,14 @@ Hej, jeg er glad for at vi snart er færdige.
 .
 
 # B
+
+Dette er kode
+```{r}
+print(1+2+3)
+```
+
+Dette er et svar
+
 
 # C
 
