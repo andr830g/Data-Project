@@ -597,6 +597,8 @@ kbl(CV_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
+## auto.arima()
+
 Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted to test our model against a model that would be suggested by the auto.arima()-function from the library "forecast".
 
 The auto.arima()-function came with very different suggestions of models depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model as it's initial guess, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
@@ -607,7 +609,7 @@ We then tried running it through cross-validation to see if the ARIMA(23,1,0) mo
 
 As might have been expected, it looks like the ARIMA(23,1,0) model suggested by the auto.arima()-function was lucky to have performed very well on the last 28 days of the data, and generally looks to be worse than the SARIMA(24,1,1)(7,0,1) model and on pair with the very similar ARIMA(24,1,0) model. Hence, we will conclude that the best performing model from the cross-validation and model validation was the SARIMA(24,1,1)(7,0,1) model that we at last test on new test data and get the following results.
 
-# Test data
+## Test data
 ```{r include=FALSE}
 test_prices <- read.csv("data/test_price_clean.csv") %>%
   mutate(
@@ -655,8 +657,8 @@ test_prices["Summer"] <- ifelse(test_prices$Month %in% c(6, 7, 8), 1, 0)
 test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
-### Day-ahead forecast on 28 days of test data
+### ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
+
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*28), ])
 full_prod <- rbind(prod, test_prod[1:(24*28), ])
@@ -684,7 +686,8 @@ qqnorm(residuals)
 qqline(residuals)
 ```
 
-### Day-ahead forecast on 59 days of test data
+### ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
+
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*59), ])
 full_prod <- rbind(prod, test_prod[1:(24*59), ])
