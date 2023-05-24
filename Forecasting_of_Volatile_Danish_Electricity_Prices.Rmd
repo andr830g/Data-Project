@@ -1,5 +1,5 @@
 ---
-title: "Forecasting of volatile Danish Electricity Prices"
+title: "Forecasting of Volatile Danish Electricity Prices"
 author: 'Andreas Skiby Andersen, Andreas Hyldegaard Hansen'
 date: 'Last update: `r Sys.Date()`'
 output:
@@ -27,7 +27,9 @@ library(kableExtra)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-#knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+local({
+  Sys.setenv(LANGUAGE = "en")
+})
 ```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -51,12 +53,30 @@ con <- con %>%
 prod <- prod %>%
   filter(price_area == "DK1") %>%
   arrange(hour_utc)
+```
 
+```{r}
+prices["t"] <- 1:length(prices$spot_price_dkk)
 prices["Hour"] <- hour(prices$hour_utc)
 prices["Wday"] <- wday(prices$hour_utc, label=T)
 prices["Week"] <- week(prices$hour_utc)
 prices["Month"] <- month(prices$hour_utc)
 prices["Year"] <- year(prices$hour_utc)
+
+prices["Sun"] <- ifelse(prices$Wday %in% c("Sun", "sø", "Søn"), 1, 0)
+prices["Sat"] <- ifelse(prices$Wday %in% c("Sat", "lø", "Lør"), 1, 0)
+prices["Fri"] <- ifelse(prices$Wday %in% c("Fri", "fr", "Fre"), 1, 0)
+prices["Thu"] <- ifelse(prices$Wday %in% c("Thu", "to", "Tor"), 1, 0)
+prices["Wed"] <- ifelse(prices$Wday %in% c("Wed", "on", "Ons"), 1, 0)
+prices["Tue"] <- ifelse(prices$Wday %in% c("Tue", "ti", "Tir"), 1, 0)
+prices["Mon"] <- ifelse(prices$Wday %in% c("Mon", "ma", "Man"), 1, 0)
+
+prices["Cutoff"] <- ifelse(prices$t >= 15000, 1, 0)
+
+prices["Winter"] <- ifelse(prices$Month %in% c(12, 1, 2), 1, 0)
+prices["Spring"] <- ifelse(prices$Month %in% c(3, 4, 5), 1, 0)
+prices["Summer"] <- ifelse(prices$Month %in% c(6, 7, 8), 1, 0)
+prices["Autumn"] <- ifelse(prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -676,13 +696,13 @@ test_prices["Week"] <- week(test_prices$hour_utc)
 test_prices["Month"] <- month(test_prices$hour_utc)
 test_prices["Year"] <- year(test_prices$hour_utc)
 
-test_prices["Sun"] <- ifelse(test_prices$Wday=="Sun", 1, 0)
-test_prices["Sat"] <- ifelse(test_prices$Wday=="Sat", 1, 0)
-test_prices["Fri"] <- ifelse(test_prices$Wday=="Fri", 1, 0)
-test_prices["Thu"] <- ifelse(test_prices$Wday=="Thu", 1, 0)
-test_prices["Wed"] <- ifelse(test_prices$Wday=="Wed", 1, 0)
-test_prices["Tue"] <- ifelse(test_prices$Wday=="Tue", 1, 0)
-test_prices["Mon"] <- ifelse(test_prices$Wday=="Mon", 1, 0)
+test_prices["Sun"] <- ifelse(test_prices$Wday %in% c("Sun", "sø", "Søn"), 1, 0)
+test_prices["Sat"] <- ifelse(test_prices$Wday %in% c("Sat", "lø", "Lør"), 1, 0)
+test_prices["Fri"] <- ifelse(test_prices$Wday %in% c("Fri", "fr", "Fre"), 1, 0)
+test_prices["Thu"] <- ifelse(test_prices$Wday %in% c("Thu", "to", "Tor"), 1, 0)
+test_prices["Wed"] <- ifelse(test_prices$Wday %in% c("Wed", "on", "Ons"), 1, 0)
+test_prices["Tue"] <- ifelse(test_prices$Wday %in% c("Tue", "ti", "Tir"), 1, 0)
+test_prices["Mon"] <- ifelse(test_prices$Wday %in% c("Mon", "ma", "Man"), 1, 0)
 
 test_prices["Cutoff"] <- ifelse(test_prices$t >= 15000, 1, 0)
 
