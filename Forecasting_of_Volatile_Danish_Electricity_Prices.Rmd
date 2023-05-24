@@ -336,19 +336,20 @@ This gives us a much clearer view of the monthly seasonality, and we can confirm
 
 In this section and in the section "Results", we are referring to our work done in Model_benchmark.Rmd.
 
-When deciding on a method for forecasting, there is different ways you can go about it. In this project, we have decided to forecast the next 24 hours (day-ahead forecasting), without reestimating the model. Day-ahead forecasting would in the real world be enough for a company to make a bid for the upcoming day and the ARIMA/SARIMA model will also perform better when it is not trying to forecast far into the future. We decided to not reestimate the model for each day we forecast, since this would then be a very slow process, but instead just keep the estimated coefficients and give the model the data of the next 24 hours every time to forecast the next day. We then evaluate the day-ahead forecast on validation data of the last 28 days using the Root Mean Square Error (RMSE).
+When deciding on a method for forecasting, there is different ways to go about it. In this project, we have decided to forecast the next 24 hours (day-ahead forecasting), without reestimating the model. Day-ahead forecasting would in the real world be enough for a company to make a bid for the upcoming day, and the ARIMA/SARIMA model will also perform better, when it is not trying to forecast far into the future. We decided to not reestimate the model for each day we forecast, since this would then be a very slow process, but instead just keep the estimated coefficients, and give the model the data of the next 24 hours every time, to forecast the next day. We then evaluate the day-ahead forecast on validation data of the last 28 days, using the Root Mean Square Error (RMSE).
 
-First of all, we needed to generate some naive benchmark models, so we had something to evaluate our different model's performance against. We used a simple linear regression, a sinusoidal regression and the best fitted sum of multiple sinusoidal regressions we found from the section "Trends", to create some very naive benchmark models. We trained the models on the data without the last 28 days and then used the last 28 days as validation data.
+First of all, we needed to generate some naive benchmark models, to have some measures to evaluate our different model's performances against. We used a simple linear regression, a sinusoidal regression and the best fitted sum of multiple sinusoidal regressions we found from the section "Trends", to create some very naive benchmark models. We trained the models on the data without the last 28 days, and then used the last 28 days as validation data.
 
-The results of these benchmark models can be seen in the Results table in the section "Results", where we could observe that the linear regression gave the best results.
+The results of these benchmark models can be seen in the Results table in the section "Results", where we could observe that the simple linear regression gave the best results.
 
 We then created the function below to generate the day-ahead forecasts using different auto-regressive models such as the ARIMA/SARIMA. The SARIMA(p, d, q)(P, D, Q)(T) is defined as:
 
 $$
 \Delta_d y_t = \sum_{i=1}^{p} \beta_i \Delta_d y_{t-i} + \sum_{j=1}^{q} \gamma_j \Delta_d u_{t-j} + \sum_{k=1}^{P} \zeta_k \Delta_D y_{t-T\cdot k} + \sum_{l=1}^{Q} \Delta_D \eta_l u_{t-T\cdot l} + \Delta_d u_t
 $$
+For time series $y_t$, constants $\beta_i, \gamma_j, \zeta_k, \eta_l$ and residual $u_t$ with mean 0 and variance $\sigma^2$.
 
-For time series $y_t$, constants $\alpha, \beta_i, \gamma_j, \zeta_k, \eta_l$ and residual $u_t$ with mean 0 and variance $\sigma^2$.
+The ARIMA model is defined in the same way as the SARIMA model above, but without the seasonal component equal to the last two sums in the above equation. Furthermore, an intercept $\alpha$ is included in the model when $d=0$.
 
 ```{r}
 forecast_func <- function(days_ahead, data,
@@ -406,15 +407,15 @@ forecast_func <- function(days_ahead, data,
 }
 ```
 
-The forecasting function takes inputs of the days ahead, data of the time series, hyperparameters p, d, q, P, D, Q, T including which are fixed and free, if the forecast should be plotted and a set of coefficients already determined.
+The forecasting function takes inputs of the days ahead, data of the time series, hyperparameters p, d, q, P, D, Q, T including which are fixed and free, whether or not the forecast should be plotted and the possibility to include a set of predetermined coefficients.
 
-Firstly, the data is split into training data which consists of all data except the last $24\cdot \text{days ahead}$ observations which is the validation data. If the coefficients are not determined, then an ARIMA model is fitted to the training data to obtain coefficients.
+Firstly, the data is split into training data, which consists of all data except the last $24\cdot \text{days ahead}$ observations, which is the validation data. If the coefficients are not predetermined, then an ARIMA model is fitted to the training data, to obtain coefficients.
 
-As far as we're aware no R packages supports day ahead forecasting for multiple days, so our approach is to use a fixed window meaning that the estimated ARIMA coefficients are kept constant during forecasting. Using training data, we forecast only 24 hours into the future, then the 24 hour validation data is added to the training data. This process is repeated for the number of days to forecast. One issue with this forecasting approach is that even though the coefficients are fixed, calling the ARIMA object using all training data multiple times takes a very long time. Instead we use only a a subset of the most recent training data which significantly speed up the forecasting process without impacting the forecast.
+As far as we are aware, no R libraries support day-ahead forecasting for multiple days, so our approach is to use a fixed window, meaning that the estimated ARIMA coefficients are kept constant during forecasting. Using training data, we forecast only 24 hours into the future. Afterwards, the 24 hour validation data is added to the training data. This process is repeated for the number of days to forecast. One issue with this forecasting approach is that, even though the coefficients are fixed, calling the ARIMA object using all training data multiple times, takes a very long time. Instead, we only use a subset of the most recent training data, which significantly speeds up the forecasting process, without impacting the forecast.
 
-We ran this function on many different models, where we chose the lags based on what we found in the seasonality analysis. Hence, some different combinations of 24 hour lags and weekly seasonal lags, equal to 168 hour lags for a seasonal lag of 7.
+We ran this function on many different models, where we chose the lags based on what we found in the seasonality analysis. Hence, some different combinations of 24 hour lags and seasonal 24 hour lags for each day up until one week back, equal to 168 hour lags for a seasonal lag of 7.
 
-We tried to run some of the models where we fixed many of the coefficients to zero. For example, when looking at the results table in the section "Results", there is a column called "free_arima". If that column value says "24th", then it means that we fixed the 23 lags up until the 24th lag to 0, such that the current price only is dependent on the price 24 hours ago. The same applies for the "free_seasonal" column.
+We tried to run some of the models, where we fixed many of the coefficients at zero. For example, when looking at the Results table in the section "Results", there is a column called "free_arima". If that column value says "24th", then it means that we fixed the 23 lags up until the 24th lag to 0, such that the current price only is dependent on the price 24 hours ago. The same applies for the "free_seasonal" column, and if these column values are empty, it means that none of the coefficients have been fixed at zero.
 
 Below is an example on how we ran the function, on what we found to be the best model without exogenous variables.
 
@@ -521,11 +522,11 @@ forecast_func_xreg <- function(days_ahead, data, xogen,
 }
 ```
 
-The basic structure is equivalent to the previous function, but the exogenous variables are also split into training and validation. We encountered a strange problem, fitting "arima" with exogenous variables works, but forecasting with the "forecast" function is not supported. We found a work around by using the "Arima" function as a wrapper. The issue is likely caused by "arima" originating from the "stats" package where "Arima" and "forecast" is from the "forecast" package. 
+The basic structure is equivalent to the previous function, but the exogenous variables are also split into training data and validation data. We encountered a strange problem, where fitting the arima()-function with exogenous variables works, but forecasting with the forecast()-function is not supported. We found a workaround by using the Arima()-function as a wrapper. The issue is likely caused by the arima()-function originating from the "stats" library, where the Arima()-function and forecast()-function are from the "forecast" library.
 
-We evaluated many different combinations of exogenous variables to see which exogenous variables had a positive impact on describing the data and which exogenous variables that didn't have a positive impact on describing the data or even lead to possible overfitting.
+We evaluated many different combinations of exogenous variables, to see which exogenous variables had a positive impact on describing the data, and which exogenous variables didn't have a positive impact on describing the data, or even lead to possible overfitting.
 
-It is worth noting that we didn't evaluate the different combinations of exogenous variables on the best model we found without exogenous variables, but instead a simpler ARIMA(24,1,0) model which also performed well. This was a choice we made, since the SARIMA(24,1,1)(7,0,1) took a very long to fit, so we found the best combinations of exogenous variables for the ARIMA(24,1,0) model and then tried to use the same exogenous variables on the SARIMA(24,1,1)(7,0,1). We then observed that SARIMA(24, 1, 1)(7, 0, 1) with exogenous variables was still the best model for forecasting with exogenous variables as well.
+It is worth noting that we didn't evaluate the different combinations of exogenous variables on the best model we found without exogenous variables, but instead a simpler ARIMA(24,1,0) model, which also performed well. This was a choice we made, since the SARIMA(24,1,1)(7,0,1) took a very long time to fit, so we found the best combinations of exogenous variables for the ARIMA(24,1,0) model, and then tried to use the same exogenous variables on the SARIMA(24,1,1)(7,0,1). We then observed that SARIMA(24, 1, 1)(7, 0, 1) with these exogenous variables, was the best model for forecasting with exogenous variables as well.
 
 Below is an example on how we ran the function, on what we found to be the best model with exogenous variables.
 
@@ -554,9 +555,9 @@ qqnorm(residuals)
 qqline(residuals)
 ```
 
-Hence, we found that the best model from this test on the last 28 days as validation data, was the SARIMA(24,1,1)(7,0,1) model with exogenous variables and the best somewhat simple model with exogenous variables was the ARIMA(24,1,0) model.
+Hence, we found that the best model from this test on the last 28 days as validation data, was the SARIMA(24,1,1)(7,0,1) model with exogenous variables, and the best simpler model with exogenous variables was the ARIMA(24,1,0) model.
 
-To check that the models are not overfitted to the chosen last 28 days of data, we also use cross-validation. To do this with time series data, we split the data into 4 different subsets, which we chose to be 3 evenly split subsets of the volatile part of the data and a 4th subset of all the volatile part of the data.
+To check that the models were not overfitted to the chosen last 28 days of data, we also used cross-validation. To do this with time series data, we split the data into 4 different subsets, which we chose to be 3 evenly split subsets of the volatile part of the data, and a 4th subset of all the volatile part of the data.
 
 The results of this cross-validation can be seen in the Cross-validation table in the section "Results", where we observed that SARIMA(24,1,1)(7,0,1) model didn't seem to be overfitted, when compared to the simpler ARIMA(24,1,0) model.
 
@@ -564,7 +565,7 @@ The results of this cross-validation can be seen in the Cross-validation table i
 
 Below, is the results of the different models that have been evaluated. In the Results table, the models have been trained on all the training data except the last 28 days, that have been used as validation data.
 
-In the Cross-validation table, is the results from the models we ran through cross-validation.
+In the Cross-validation table, are the results from the models, we ran through cross-validation.
 
 ## Results table
 
@@ -633,15 +634,15 @@ kbl(CV_table) %>%
 
 ## auto.arima()
 
-Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted to test our model against a model that would be suggested by the auto.arima()-function from the library "forecast".
+Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted to test our model, against a model that would be suggested by the auto.arima()-function from the library "forecast".
 
-The auto.arima()-function came with very different suggestions of models depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model as it's initial guess, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
+The auto.arima()-function came with very different suggestions of models, depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model as it's initial guess, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
 
 We then tried to use this model for day-ahead forecasting and saw that it was a lot worse than the SARIMA(24,1,1)(7,0,1) model without exogenous variables, but it was also on pair with the SARIMA(24,1,1)(7,0,1) model when exogenous variables were included.
 
-We then tried running it through cross-validation to see if the ARIMA(23,1,0) model suggested by the auto.arima()-function might have been overfitted to the chosen last 28 days of the data as validation data. The results from cross-validation on the auto.arima() model can also be seen in the Cross-validation table.
+We then tried running it through cross-validation, to see if the ARIMA(23,1,0) model suggested by the auto.arima()-function, might have been overfitted to the chosen last 28 days of the data as validation data. The results from cross-validation on the auto.arima() model, can also be seen in the Cross-validation table.
 
-As might have been expected, it looks like the ARIMA(23,1,0) model suggested by the auto.arima()-function was lucky to have performed very well on the last 28 days of the data, and generally looks to be worse than the SARIMA(24,1,1)(7,0,1) model and on pair with the very similar ARIMA(24,1,0) model. Hence, we will conclude that the best performing model from the cross-validation and model validation was the SARIMA(24,1,1)(7,0,1) model that we at last test on new test data and get the following results.
+As might have been expected, it looks like the ARIMA(23,1,0) model, suggested by the auto.arima()-function, was lucky to have performed very well on the last 28 days of the data, and generally looks to be worse than the SARIMA(24,1,1)(7,0,1) model, and on pair with the very similar ARIMA(24,1,0) model. Hence, we will conclude that the best performing model from the cross-validation and model validation, was the SARIMA(24,1,1)(7,0,1) model, that we at last test on new test data.
 
 ## Test data
 ```{r include=FALSE}
