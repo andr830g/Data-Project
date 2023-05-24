@@ -27,9 +27,6 @@ library(kableExtra)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-local({
-  Sys.setenv(LANGUAGE = "en")
-})
 ```
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -55,7 +52,7 @@ prod <- prod %>%
   arrange(hour_utc)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 prices["t"] <- 1:length(prices$spot_price_dkk)
 prices["Hour"] <- hour(prices$hour_utc)
 prices["Wday"] <- wday(prices$hour_utc, label=T)
@@ -88,7 +85,7 @@ plot(prices$spot_price_dkk, type="l", main="Spot price in DK1", xlab="", ylab="D
 axis(side=1, 
      at=c(1, 1682, 6702, 10730, 13404, 18842, 20106, 24098, 26808), 
      labels=c("2020-01-01", "Lockdown", "2020-10-06", "Evergreen","2021-07-12", "Invasion", "2022-04-17", "CPI peak", "2023-01-21"), 
-     las=2)
+     las=2, cex.axis=0.85)
 abline(v=1682, col="red", lty=2, lwd=2)
 abline(v=10730, col="red", lty=2, lwd=2)
 abline(v=18842, col="red", lty=2, lwd=2)
@@ -139,7 +136,7 @@ $$
 $$
 The null states that a unit root is present $\rho=1 \Rightarrow \gamma=0$, the alternative states that it's stationary.
 
-The KPSS test, tests for stationarity around a trend without the presence of a unit root process.
+The KPSS test, tests for stationarity around a trend, without the presence of a unit root process.
 $$
 \begin{split}
   y_t &= \alpha + \beta t + z_t\\
@@ -147,17 +144,17 @@ $$
   r_t &= r_{t-1} + v_t
 \end{split}
 $$
-For time series $y_t$, residual $z_t$, short term memory $u_t$ and long term memory unit root $r_t$ where $r_0=0$ and $v_t$ i.i.d. with mean 0 and variance $\sigma^2_v$.
+For time series $y_t$, residual $z_t$, short term memory $u_t$ and long term memory unit root $r_t$, where $r_0=0$ and $v_t$ i.i.d. with mean 0 and variance $\sigma^2_v$.
 
 The null states that $y_t$ is trend stationary which implies $\sigma^2_v=0$, the alternative states that a unit root is present.
 
 We first check if the raw data is covariance stationary.
 
 ```{r}
-acf(prices$spot_price_dkk, lag.max = 1000)
+acf(prices$spot_price_dkk, lag.max = 1000, main="Spot price in DK1")
 ```
 
-```{r message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 adf.test(prices$spot_price_dkk)
 kpss.test(prices$spot_price_dkk)
 ```
@@ -204,8 +201,11 @@ plot(prices$spot_price_dkk,
 lines(prices$t, prices_trend, col="red")
 
 plot(prices$t, residuals_trend, 
-     main="Detrended data", ylab="DKK per MWh", xlab="Time", 
+     main="Detrended data", ylab="Detrended DKK per MWh", xlab="Time", 
      col=alpha("black", 0.5), type="l")
+```
+
+```{r echo=FALSE}
 print(c("RMSE:", sqrt(mean(residuals_trend^2))))
 ```
 
@@ -217,11 +217,14 @@ acf(residuals_trend, lag.max=1000, main="Detrended data")
 
 We then evaluate the result from the detrending against the approach of first differencing using ADF test and KPSS test.
 
-```{r message=FALSE, warning=FALSE}
-print("Detrending")
+Detrending
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 adf.test(residuals_trend)
 kpss.test(residuals_trend)
-print("First Differencing")
+```
+
+First Differencing
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 adf.test(diff(prices$spot_price_dkk, 1))
 kpss.test(diff(prices$spot_price_dkk, 1))
 ```
@@ -264,22 +267,28 @@ plot(subset_prices$t, subset_prices$spot_price_dkk,
 lines(subset_prices$t, prices_trend, col="red")
 
 plot(subset_prices$t, residuals_trend, 
-     main="Detrended data", ylab="DKK per MWh", xlab="Time",
+     main="Detrended data", ylab="Detrended DKK per MWh", xlab="Time",
      col=alpha("black", 0.5), type="l")
+```
+
+```{r echo=FALSE}
 print(c("RMSE:", sqrt(mean(residuals_trend^2))))
 ```
 
 Note that we are here only trying to fit the sinusoidal regression on the "volatile" last part of the data. We then see that it looks like we have fitted the underlying function quite well, but we will have to check what the KPSS test says regarding stationarity.
 
 ```{r}
-acf(residuals_trend, lag.max=1000)
+acf(residuals_trend, lag.max=1000, main="Detrended data")
 ```
 
-```{r message=FALSE, warning=FALSE}
-print("Detrending")
+Detrending
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 adf.test(residuals_trend)
 kpss.test(residuals_trend)
-print("First Differencing")
+```
+
+First Differencing
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 adf.test(diff(prices$spot_price_dkk, 1))
 kpss.test(diff(prices$spot_price_dkk, 1))
 ```
@@ -299,9 +308,9 @@ plot(prices$t, prices$spot_price_dkk,
 lines(prices$t, prices_trend, col='red', lwd=2)
 
 plot(prices$t, prices$spot_price_dkk - prices_trend, 
-     main="Detrended data", ylab="DKK per MWh", xlab="Time", type='l')
+     main="Detrended data", ylab="Detrended DKK per MWh", xlab="Time", type='l')
 
-plot(diff(prices$spot_price_dkk, 1), main="First Differenced", type="l")
+plot(diff(prices$spot_price_dkk, 1), main="First Differenced", type="l", ylab="Differenced DKK per MWh", xlab="Time")
 ```
 
 This made us decide on using first differencing to transform our data, to become covariance stationary.
@@ -311,6 +320,7 @@ acf(diff(prices$spot_price_dkk, 1), lag.max = 1000, main="First Differenced")
 acf(diff(prices$spot_price_dkk[prices$Hour==17], 1), lag.max = 1000, main="First Differenced Hour 17")
 ```
 
+As we can see, the ACF plots for the first differenced data, show a fast convergence towards insignificant autocorrelation, and this becomes even more obvious when subsetting on a single hour, to account for seasonality.
 
 # Seasonality
 
@@ -365,7 +375,7 @@ This gives us a much clearer view of the monthly seasonality, and we can confirm
 
 # Forecasting
 
-In this section and in the section "Results", we are referring to our work done in Model_benchmark.Rmd.
+In this section and in the section "Results", we are referring to our work done in Modelling.Rmd.
 
 When deciding on a method for forecasting, there is different ways to go about it. In this project, we have decided to forecast the next 24 hours (day-ahead forecasting), without reestimating the model. Day-ahead forecasting would in the real world be enough for a company to make a bid for the upcoming day, and the ARIMA/SARIMA model will also perform better, when it is not trying to forecast far into the future. We decided to not reestimate the model for each day we forecast, since this would then be a very slow process, but instead just keep the estimated coefficients, and give the model the data of the next 24 hours every time, to forecast the next day. We then evaluate the day-ahead forecast on validation data of the last 28 days, using the Root Mean Square Error (RMSE).
 
@@ -380,7 +390,7 @@ $$
 $$
 For time series $y_t$, constants $\beta_i, \gamma_j, \zeta_k, \eta_l$ and residual $u_t$ with mean 0 and variance $\sigma^2$.
 
-The ARIMA model is defined in the same way as the SARIMA model above, but without the seasonal component equal to the last two sums in the above equation. Furthermore, an intercept $\alpha$ is included in the model when $d=0$.
+The ARIMA model is defined in the same way as the SARIMA model above, but without the seasonal component equal to the last two sums in the above equation. Furthermore, an intercept $\alpha$ is included in the model, when $d=0$.
 
 ```{r}
 forecast_func <- function(days_ahead, data,
@@ -429,7 +439,7 @@ forecast_func <- function(days_ahead, data,
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
-         main="Forecasts", xlab="Time", ylab="Price")
+         main="Forecasts", xlab="Time", ylab="DKK per MWh")
     lines(x=(length(training_data)+1):length(data) , y=forecasts, col="blue")
     lines(x=(length(training_data)+1):length(data) , y=validation_data, col=alpha("red", 0.5))
     legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
@@ -458,14 +468,22 @@ outputlist <- forecast_func(28, prices$spot_price_dkk,
                             24,
                             plotbool=T,
                             set_coefs=NULL)
+```
+
+```{r include=FALSE}
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
-print(AR_f_coef)
+```
 
+```{r}
+print(AR_f_coef)
+```
+
+```{r echo=FALSE}
 hist(residuals, breaks=50)
-qqnorm(residuals)
+qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
@@ -544,7 +562,7 @@ forecast_func_xreg <- function(days_ahead, data, xogen,
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
-         main="Forecasts", xlab="Time", ylab="Price")
+         main="Forecasts", xlab="Time", ylab="DKK per MWh")
     lines(x=(length(training_data)+1):length(data) , y=forecasts, col="blue")
     lines(x=(length(training_data)+1):length(data) , y=validation_data, col=alpha("red", 0.5))
     legend("topright", inset=0.02, legend=c("Forecast", "Data"), col=c("blue", "red"), lty=1)
@@ -575,14 +593,22 @@ outputlist <- forecast_func_xreg(28, prices$spot_price_dkk, xregs,
                             24,
                             plotbool=T,
                             set_coefs=NULL)
+```
+
+```{r include=FALSE}
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
-print(AR_f_coef)
+```
 
+```{r}
+print(AR_f_coef)
+```
+
+```{r echo=FALSE}
 hist(residuals, breaks=50)
-qqnorm(residuals)
+qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
@@ -741,14 +767,22 @@ outputlist <- forecast_func_xreg(28, full_prices$spot_price_dkk, xregs,
                             24,
                             plotbool=T,
                             set_coefs=NULL)
+```
+
+```{r include=FALSE}
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
-print(AR_f_coef)
+```
 
+```{r}
+print(AR_f_coef)
+```
+
+```{r echo=FALSE}
 hist(residuals, breaks=50)
-qqnorm(residuals)
+qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
@@ -770,14 +804,22 @@ outputlist <- forecast_func_xreg(59, full_prices$spot_price_dkk, xregs,
                             24,
                             plotbool=T,
                             set_coefs=NULL)
+```
+
+```{r include=FALSE}
 forecasts <- outputlist[[1]]
 residuals <- outputlist[[2]]
 RMSE <- outputlist[[3]]
 AR_f_coef <- outputlist[[4]]
-print(AR_f_coef)
+```
 
+```{r}
+print(AR_f_coef)
+```
+
+```{r echo=FALSE}
 hist(residuals, breaks=50)
-qqnorm(residuals)
+qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
