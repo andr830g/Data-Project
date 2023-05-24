@@ -45,6 +45,8 @@ Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, 
 Result_table <- rbind(Result_table, list("ARIMA(1,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 303.5))
 Result_table <- rbind(Result_table, list("SARIMA(24,1,0)", "24th", "(7,0,0)", "1st, 2nd, 7th", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 311.8))
 Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 263.9))
+Result_table <- rbind(Result_table, list("auto.arima(23,1,0)", "", "", "", "", 369.8))
+Result_table <- rbind(Result_table, list("auto.arima(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 262.3))
 colnames(Result_table) <- c("model", "free_arima", "seasonal", "free_seasonal", "xreg", "RMSE")
 ```
 
@@ -58,6 +60,6 @@ CV_table <- rbind(CV_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "", 393.3,
 CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind", 354.6, 674.8, 405.2, 364.3, 449.7, 151.6))
 CV_table <- rbind(CV_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.9, 543.2, 328.5, 364.3, 369.2, 127.1))
 CV_table <- rbind(CV_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 233.0, 539.5, 316.7, 337.7, 356.7, 130.0))
-CV_table <- rbind(CV_table, list("ARIMA(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.5, 533.7, 345.2, 359.4, 369.7, 121.5))
+CV_table <- rbind(CV_table, list("auto.arima(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 240.5, 533.7, 345.2, 359.4, 369.7, 121.5))
 colnames(CV_table) <- c("model", "free_arima", "seasonal", "free_seasonal", "xreg", "sub_RMSE_1", "sub_RMSE_2", "sub_RMSE_3", "sub_RMSE_4", "mean_RMSE", "sd_RMSE")
 ```

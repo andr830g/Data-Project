@@ -666,6 +666,8 @@ Result_table <- rbind(Result_table, list("ARIMA(24,1,0)", "", "", "", "Weekend, 
 Result_table <- rbind(Result_table, list("ARIMA(1,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 303.5))
 Result_table <- rbind(Result_table, list("SARIMA(24,1,0)", "24th", "(7,0,0)", "1st, 2nd, 7th", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 311.8))
 Result_table <- rbind(Result_table, list("SARIMA(24,1,1)", "", "(7,0,1)", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 263.9))
+Result_table <- rbind(Result_table, list("auto.arima(23,1,0)", "", "", "", "", 369.8))
+Result_table <- rbind(Result_table, list("auto.arima(23,1,0)", "", "", "", "Weekend, Wind, FossilProduce, Biomass, Waste, Exchange", 262.3))
 colnames(Result_table) <- c("model", "free_arima", "seasonal", "free_seasonal", "xreg", "RMSE")
 kbl(Result_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
@@ -695,7 +697,7 @@ Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted t
 
 The auto.arima()-function came with very different suggestions of models, depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model as it's initial guess, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
 
-We then tried to use this model for day-ahead forecasting and saw that it was a lot worse than the SARIMA(24,1,1)(7,0,1) model without exogenous variables, but it was also on pair with the SARIMA(24,1,1)(7,0,1) model when exogenous variables were included.
+We then tried to use this model for day-ahead forecasting without exogenous variables and saw that it was worse, with an RMSE of 369.8, compared to the RMSE of 344.0 of the SARIMA(24,1,1)(7,0,1) model. When exogenous variables were included, it was instead on pair, with an RMSE of 262.3 compared to the 263.9 of the SARIMA(24,1,1)(7,0,1) model. This can also be seen in the Results table.
 
 We then tried running it through cross-validation, to see if the ARIMA(23,1,0) model suggested by the auto.arima()-function, might have been overfitted to the chosen last 28 days of the data as validation data. The results from cross-validation on the auto.arima() model, can also be seen in the Cross-validation table.
 
