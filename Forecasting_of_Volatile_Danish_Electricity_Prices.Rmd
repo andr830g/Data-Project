@@ -579,7 +579,7 @@ It is worth noting that we didn't evaluate the different combinations of exogeno
 
 Below is an example on how we ran the function, on what we found to be the best model with exogenous variables.
 
-## ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+## SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
 ```{r}
 xregs <- cbind(prices$Sat, prices$Sun, 
               prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
@@ -749,7 +749,7 @@ test_prices["Summer"] <- ifelse(test_prices$Month %in% c(6, 7, 8), 1, 0)
 test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-### ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
+### SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
 
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*28), ])
@@ -786,7 +786,7 @@ qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
-### ARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
+### SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
 
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*59), ])
