@@ -64,10 +64,9 @@ prices <- prices %>%
   filter(price_area == "DK1")
 ```
 
-
 # Introduction
 
-Great focus has been cast on the commodity sector during the period 2021 to present day, as the danish society has seen large volatility in electricity and gas prices. In the period, the electricity spot price has been affected by the lack of wind and worldwide consequences of inflation, freight chaos and the Russian-Ukraine war causing record high prices for the consumers.
+Great focus has been cast on the commodity sector during the period 2021 to present day, as the danish society has seen a great rise and large volatility in electricity prices and gas prices. In the period, the electricity spot price has been affected by worldwide consequences of inflation, freight chaos and the Russian-Ukraine war, causing record high prices for the consumers.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 plot(prices$spot_price_dkk, type="l", main="Spot price in DK1", xlab="", ylab="DKK per MWh", xaxt="n")
@@ -81,16 +80,15 @@ abline(v=18842, col="red", lty=2, lwd=2)
 abline(v=24098, col="red", lty=2, lwd=2)
 ```
 
-Above, electricity spot prices in DK1 are shown for the period 2020-01-01 to 2023-01-21. Red lines indicate the danish lockdown due to COVID-19 2020-03-11, the Evergreen blockade of the Suez Canal 2021-03-23, the Russian invasion of Ukraine 2022-02-24 and the danish peak inflation of 10.1% in October 2022.
+Above, the electricity spot prices in DK1 are shown for the period 2020-01-01 to 2023-01-21. The red lines indicate the danish lockdown due to COVID-19, 2020-03-11, the Evergreen blockade of the Suez Canal, 2021-03-23, the Russian invasion of Ukraine, 2022-02-24 and the danish peak inflation of 10.1% in October 2022.
 
-This project is focusing exclusively in spot prices in price area DK1 which is Denmark east of the Great belt and the project will analyze time series data of electricity spot prices to find ARIMA models which are better than a naive benchmark model.
+The data consists of three data sets. The first data set contains electricity spot prices per hour in DKK pr. MWh, over the period 2020-01-01 hour 0 (midnight), to 2023-01-31 hour 23 danish time. The price areas are Denmark east of the Great Belt (DK1), Denmark west of the great belt (DK2), Sweden southern part (SE4), Sweden area surrounding Stockholm (SE3), Norway southern part (NO2), Germany (DE).
 
-The data consists of three datasets. The first contains electricity spot prices per hour in DKK pr. MWh over the period 2020-01-01 hour 0 (midnight) to 2023-01-31 hour 23 danish time. The price areas are Denmark east of the Great Belt (DK1), Denmark west of the great belt (DK2), Sweden southern part (SE4), Sweden area sorrounding Stockholm (SE3), Norway southern part (NO2), Germany (DE).
+The second data set contains data of electricity exchange between Denmark and neighboring countries and danish production of electricity in MWh per hour from fossile fuels (gas, oil, coal), sustainable energy (biomass, offshore wind, onshore wind, hydro) and incineration in the same time period.
 
-The second contains data of electricity excahnge between Denmark and neighboring countries and danish production of electricity in MWh from fossile fuels (gas, oil, coal) and sustainable energy (biomass, offshore wind, onshore wind, hydro) and burning of waste per hour in the same time period.
+The third data set contains data on consumption in kWh from different different grid companies per hour, in the period 2020-01-01 hour 0 (midnight), to 2023-01-21 hour 23.
 
-The third contains data on consumption in kWh from different different grid companies per hour in the period 2020-01-01 hour 0 to 2023-01-21 hour 23.
-
+This project is focusing exclusively on spot prices in the price area DK1, which is Denmark, east of the Great belt, and the project will analyze time series data of electricity spot prices, to find ARIMA/SARIMA models, which are better than a naive benchmark model, for forecasting these electricity spot prices.
 
 # Data cleaning
 
@@ -98,25 +96,24 @@ In this section, we are referring to our work done in data_cleaning.qmd.
 
 We have gathered our raw data from www.energidataservice.dk, where our data was in a .JSON file format.
 
-After reading the data, we made sure that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values to be able to use them. In the "Consumption" data set, we only had 3 variables, but still a lot of missing values. To keep as much information from the "Consumption" data set, we then transformed all the missing values to 0's.
+After reading the data, we made sure that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values, to be useful for analysis. In the "Consumption" data set, we only had 3 variables, but still a lot of missing values. To keep as much information from the "Consumption" data set, we transformed all the missing values to 0's.
 
-After having cleaned the columns, we then moved on to the rows, where we found out that the start and end times of our 3 data sets did not match. All the data sets have the same first observation regarding time, but the "Consumption" data set, were missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
+After having cleaned the columns, we then moved on to the rows. We found out that the start and end times of our 3 data sets did not match. All of the data sets had the same first observation regarding time, but the "Consumption" data set, was missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
 
-We then had a strange problem where there was 3 somewhat random observations that were missing from the "Production" data set. We then had to synthetically add the previous observation's values to the missing rows to fill in the missing observations.
-We are aware that modification of 3 out of 26808 observations can have an impact on results but we assume it's insignificant. Additionally due to the nature of time series, the observations must be present in the data for the models to work.
+We then had a strange problem, where there were 3 seemingly random observations, that were missing from the "Production" data set. We then had to use interpolation to add the previous observation's values to the missing rows, to fill in the missing observations.
+We are aware that this modification of 3 out of 26808 observations can have an impact on the results, but we assume the impact to be rather insignificant, as well as the modification being a necessity for further analysis, due to the nature of time series, and for the models to work as intended.
 
 At last, we also divided the columns in the "Consumption" data set with 1000, since we found out that the electricity used in the "Consumption" data set was in kwh, where we had electricity in Mwh in the other data sets.
 
 Having the data in a .JSON file format made reading the data very slow, so we decided to save the cleaned data as a .csv file format, which made it much faster to read.
 
-We then followed the same process to create cleaned test data to measure our model's performance at the end of the report.
-
+We then followed the same process to create cleaned test data, to measure our model's performance at the end of the report.
 
 # Trend
 
 In this section, we are referring to our work done in Detrending.Rmd.
 
-The first thing we want to look at when dealing with time series data, is to check whether or not our time series is stationary. This is difficult to check, so instead we will be checking whether or not our time series data is covariance stationary, which can be done with an ADF (Augmented Dickey-Fuller) test, a KPSS (Kwiatkowski-Phillips-Schmidt-Shin) or by observing the ACF (Auto-Correlation Function) plot.
+The first thing we want to look at when dealing with time series data, is to check whether or not the time series is stationary. This is difficult to test, so instead you will be testing whether or not the time series data is covariance stationary, which can be done with an ADF (Augmented Dickey-Fuller) test, a KPSS (Kwiatkowski-Phillips-Schmidt-Shin) test or by observing the ACF (Auto-Correlation Function) plot.
 
 The Dickey Fuller test for a simple AR(1) model:
 $$
@@ -127,7 +124,6 @@ $$
 $$
 The null states that a unit root is present $\rho=1 \Rightarrow \gamma=0$, the alternative states that it's stationary.
 
-
 The KPSS test, tests for stationarity around a trend without the presence of a unit root process.
 $$
 \begin{split}
@@ -136,11 +132,9 @@ $$
   r_t &= r_{t-1} + v_t
 \end{split}
 $$
-
 For time series $y_t$, residual $z_t$, short term memory $u_t$ and long term memory unit root $r_t$ where $r_0=0$ and $v_t$ i.i.d. with mean 0 and variance $\sigma^2_v$.
 
 The null states that $y_t$ is trend stationary which implies $\sigma^2_v=0$, the alternative states that a unit root is present.
-
 
 We first check if the raw data is covariance stationary.
 
@@ -154,17 +148,17 @@ kpss.test(prices$spot_price_dkk)
 ```
 
 We observe that the two tests don't agree. The null hypothesis for the ADF test is "Not stationary", while the null hypothesis for the KPSS test is "Stationary".
-When observing the ACF plot, we can clearly see that there is high autocorrelation in the data. Hence, we trust the KPSS test here and conclude that the time series is not covariance stationary.
+When observing the ACF plot, we can clearly see that there is high autocorrelation in the data. Hence, we trust the KPSS test here, and conclude that the time series is not covariance stationary.
 
-Next step is then to try to transform the data so that it becomes stationary, since this is a necessity to assure the correctness of the models we will be using later on (ARIMA/SARIMA).
+Next step is then to try to transform the data, so that it becomes stationary. This is a necessity to assure the correctness of the models, we will be using later on (ARIMA/SARIMA).
 
-To transform the data to become stationary, there are multiple possible methods to use. 
+There are multiple possible methods to try, when having to transform the data to become stationary.
 
-We could for example try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. We tried a logarithmic transformation where the log of negative values are replaced by 0, but this gave many outliers and structural breaks. This can be seen in the data_transformation.Rmd file.
+One could be to try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. We tried a logarithmic transformation where the log of negative values are replaced by 0, but this gave many outliers and structural breaks. This can be seen in the data_transformation.Rmd file.
 
-A different approach is to first difference the data, so that every observation is subtracted from the previous observation.
+A different also very common approach is to first difference the data, so that every observation is subtracted from the previous observation.
 
-At last, we can try to detrend the data, by fitting a regression to the data to mimic the underlying trend, which we afterwards can subtract from the data to remove the fitted trend.
+At last, an approach is to try to detrend the data, by fitting a regression to the data to mimic the underlying trend, which afterwards can be subtracted from the data, to remove the fitted trend.
 
 We first try to remove the underlying trend with a linear regression.
 
@@ -193,27 +187,29 @@ plot(prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type
 lines(prices$t, prices_trend, col="red")
 
 plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
-print(sqrt(mean(residuals_trend^2)))
+print(c("RMSE:", sqrt(mean(residuals_trend^2))))
 ```
 
-We observe that a linear trend looks to be good at catching the trend in the somewhat "stable" first part of the data, but gets worse at catching the trend in the "volatile" last part of the data.
+We observe, that a linear trend looks to be good at catching the trend in the "stable" first part of the data, but gets worse at catching the trend in the "volatile" last part of the data.
 
 ```{r}
 acf(residuals_trend, lag.max=1000)
 ```
 
-We then evaluate the detrending against using first differencing using ADF test and KPSS test.
+We then evaluate the result from the detrending against the approach of first differencing using ADF test and KPSS test.
 
 ```{r message=FALSE, warning=FALSE}
+print("Detrending")
 adf.test(residuals_trend)
 kpss.test(residuals_trend)
+print("First Differencing")
 adf.test(diff(prices$spot_price_dkk, 1))
 kpss.test(diff(prices$spot_price_dkk, 1))
 ```
 
 Looking at the KPSS test, the linear trend does not look to have made much of a difference regarding covariance stationarity, but the KPSS test says that the first differenced data is stationary.
 
-We then tried different variants of sine functions, offset sine functions + linear trends and sums of offset since functions + linear trends, to try to find a good fit of the data, where the best underlying function we found was the following sum of 7 offset sine functions + linear trends.
+We then tried different variants of sine functions, offset sine functions + linear trends and sums of offset since functions, to try to find a good fit of the data, where the best underlying function we found was the following sum of 7 offset sine functions.
 
 ```{r message=FALSE, warning=FALSE}
 trendfn <- function(data, par) {
@@ -247,25 +243,29 @@ plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=a
 lines(subset_prices$t, prices_trend, col="red")
 
 plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
-print(sqrt(mean(residuals_trend^2)))
+print(c("RMSE:", sqrt(mean(residuals_trend^2))))
 ```
 
-We note that we are here just trying to fit a trend on the "volatile" last part of the data. We then see that it looks like we have fitted the underlying function quite well, but we will have to check what the KPSS test says regarding stationarity.
+Note that we are here only trying to fit the sinusoidal regression on the "volatile" last part of the data. We then see that it looks like we have fitted the underlying function quite well, but we will have to check what the KPSS test says regarding stationarity.
 
 ```{r}
 acf(residuals_trend, lag.max=1000)
 ```
 
 ```{r message=FALSE, warning=FALSE}
+print("Detrending")
 adf.test(residuals_trend)
 kpss.test(residuals_trend)
-adf.test(diff(subset_prices$spot_price_dkk, 1))
-kpss.test(diff(subset_prices$spot_price_dkk, 1))
+print("First Differencing")
+adf.test(diff(prices$spot_price_dkk, 1))
+kpss.test(diff(prices$spot_price_dkk, 1))
 ```
 
-Looking at the KPSS test, it now says that the time series is almost covariance stationary, but the ACF plot still does not look too good. It is still also significantly less covariance stationary, than just using first differencing.
+Looking at the KPSS test, it now says that the time series is almost covariance stationary, but the ACF plot still does not look too good. It is also still significantly less covariance stationary, than just using first differencing.
 
-We also tried using a nonparametric method to fit the underlying trend in the data, but this is of course not a viable solution, since it is nonparametric and will of course then not work for forecasting. One thing, we did discover from the nonparametric model, was that when we gave it a span closer to 0, the detrending with the nonparametric model, came closer and closer to a first difference.
+We also tried using a nonparametric method to fit the underlying trend in the data, but this is of course not a viable solution, since it is nonparametric, and will of course not work for forecasting.
+
+One thing, we did discover from the nonparametric model, was that when we gave it a span closer to 0, the detrending with the nonparametric model looked more and more similar to a first differencing.
 
 ```{r}
 prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.01)
@@ -281,15 +281,15 @@ plot(prices$t, prices$spot_price_dkk - prices_trend, main="Residuals/detrend", t
 plot(diff(prices$spot_price_dkk, 1), main="First Differenced", type="l")
 ```
 
-This made us decide on using first differencing to transform our data to become covariance stationary.
+This made us decide on using first differencing to transform our data, to become covariance stationary.
 
 # Seasonality
 
 In this section, we are referring to our work done in Seasonality.Rmd.
 
-Time series data often experiences some sort of seasonality caused by varying factors over specific time periods. To "catch" possible seasonality when creating models for forecasting, we want to test in what time periods the data experiences seasonality.
+Time series data often experiences some sort of seasonality caused by varying factors over specific time periods. To "catch" possible seasonality when creating models for forecasting, we want to check in what time periods the data experiences seasonality.
 
-We start by checking for hourly and daily seasonality by plotting the mean prices grouped by hour and weekday. We then see if we can find a recurring predictable pattern.
+We start by checking for hourly and daily seasonality, by plotting the mean prices grouped by hour and weekday. We then see if we can find a recurring predictable pattern.
 
 ```{r message=FALSE, warning=FALSE}
 prices %>%
@@ -302,9 +302,9 @@ prices %>%
   geom_line()
 ```
 
-When looking at the plot, it is very clear that the prices are at their highest at around 6 AM and around 5 PM as well as the prices being at their lowest at around 2 AM and around 12 PM. This pattern seems recurring and predictable. Hence, we will note that the data experiences hourly seasonality.
+When looking at the plot, it is very clear that the prices are at their highest at around 6 AM and around 5 PM, as well as the prices being at their lowest at around 2 AM and around 12 PM. This pattern seems recurring and predictable. Hence, we note that the data experiences hourly seasonality.
 
-For daily seasonality, it looks as if there is a recurring pattern of the prices being at their highest on mondays and tuesdays and the prices being at their lowest on saturdays and sundays. We will check this over again by now checking for daily and weekly/monthly seasonality by plotting the mean prices grouped by weekday and month.
+For daily seasonality, it looks as if there is a recurring pattern of the prices being at their highest on mondays and tuesdays, and the prices being at their lowest on saturdays and sundays. We will check this over again, by now checking for daily and monthly seasonality, by plotting the mean prices grouped by weekday and month.
 
 ```{r message=FALSE, warning=FALSE}
 prices %>%
@@ -319,7 +319,7 @@ prices %>%
 
 When looking at this plot, we again see the same pattern regarding daily seasonality. Hence, we will note that the data experiences daily seasonality.
 
-For weekly/monthly seasonality, it looks like there is a recurring pattern of the prices being at their highest in the summer months and the prices being at their lowest in the winter months, with the exception of December. We will again check this one more time by now plotting the mean prices grouped by month and weekday.
+For monthly seasonality, it looks like there is a recurring pattern of the prices being at their highest in the summer months, and the prices being at their lowest in the winter months, with the exception of December. We will again check this one more time, by now plotting the mean prices grouped by month and weekday.
 
 ```{r message=FALSE, warning=FALSE}
 prices %>%
@@ -332,7 +332,7 @@ prices %>%
   geom_line()
 ```
 
-This gives us a much clearer view of the weekly/monthly seasonality, and we can confirm what we saw on the previous plot. Hence, the data experiences weekly/monthly seasonality.
+This gives us a much clearer view of the monthly seasonality, and we can confirm what we saw on the previous plot. Hence, the data experiences monthly seasonality.
 
 # Forecasting
 
