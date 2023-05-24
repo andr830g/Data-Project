@@ -79,11 +79,6 @@ prices["Summer"] <- ifelse(prices$Month %in% c(6, 7, 8), 1, 0)
 prices["Autumn"] <- ifelse(prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-```{r message=FALSE, warning=FALSE, include=FALSE}
-prices <- prices %>%
-  filter(price_area == "DK1")
-```
-
 # Introduction
 
 Great focus has been cast on the commodity sector during the period 2021 to present day, as the danish society has seen a great rise and large volatility in electricity prices and gas prices. In the period, the electricity spot price has been affected by worldwide consequences of inflation, freight chaos and the Russian-Ukraine war, causing record high prices for the consumers.
@@ -106,7 +101,7 @@ The data consists of three data sets. The first data set contains electricity sp
 
 The second data set contains data of electricity exchange between Denmark and neighboring countries and danish production of electricity in MWh per hour from fossile fuels (gas, oil, coal), sustainable energy (biomass, offshore wind, onshore wind, hydro) and incineration in the same time period.
 
-The third data set contains data on consumption in kWh from different different grid companies per hour, in the period 2020-01-01 hour 0 (midnight), to 2023-01-21 hour 23.
+The third data set contains data on consumption in kWh from different grid companies per hour, in the period 2020-01-01 hour 0 (midnight), to 2023-01-21 hour 23.
 
 This project is focusing exclusively on spot prices in the price area DK1, which is Denmark, east of the Great belt, and the project will analyze time series data of electricity spot prices, to find ARIMA/SARIMA models, which are better than a naive benchmark model, for forecasting these electricity spot prices.
 
@@ -203,17 +198,21 @@ optimum
 prices_trend <- trendfn(prices, par_result)
 residuals_trend <- prices$spot_price_dkk - prices_trend
 
-plot(prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
+plot(prices$spot_price_dkk, 
+     main="Trend function", ylab="DKK per MWh", xlab="Time", 
+     col=alpha("black", 0.5), type="l")
 lines(prices$t, prices_trend, col="red")
 
-plot(prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+plot(prices$t, residuals_trend, 
+     main="Detrended data", ylab="DKK per MWh", xlab="Time", 
+     col=alpha("black", 0.5), type="l")
 print(c("RMSE:", sqrt(mean(residuals_trend^2))))
 ```
 
 We observe, that a linear trend looks to be good at catching the trend in the "stable" first part of the data, but gets worse at catching the trend in the "volatile" last part of the data.
 
 ```{r}
-acf(residuals_trend, lag.max=1000)
+acf(residuals_trend, lag.max=1000, main="Detrended data")
 ```
 
 We then evaluate the result from the detrending against the approach of first differencing using ADF test and KPSS test.
@@ -259,10 +258,14 @@ optimum
 prices_trend <- trendfn(subset_prices, par_result)
 residuals_trend <- subset_prices$spot_price_dkk - prices_trend
 
-plot(subset_prices$t, subset_prices$spot_price_dkk, main="Trend function", col=alpha("black", 0.5), type="l")
+plot(subset_prices$t, subset_prices$spot_price_dkk, 
+     main="Trend function", ylab="DKK per MWh", xlab="Time", 
+     col=alpha("black", 0.5), type="l")
 lines(subset_prices$t, prices_trend, col="red")
 
-plot(subset_prices$t, residuals_trend, main="Residuals/detrend", col=alpha("black", 0.5), type="l")
+plot(subset_prices$t, residuals_trend, 
+     main="Detrended data", ylab="DKK per MWh", xlab="Time",
+     col=alpha("black", 0.5), type="l")
 print(c("RMSE:", sqrt(mean(residuals_trend^2))))
 ```
 
@@ -288,18 +291,26 @@ We also tried using a nonparametric method to fit the underlying trend in the da
 One thing, we did discover from the nonparametric model, was that when we gave it a span closer to 0, the detrending with the nonparametric model looked more and more similar to a first differencing.
 
 ```{r}
-prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.01)
+prices_loess <- loess(spot_price_dkk~t, data = prices, span=0.1)
 prices_trend <- predict(prices_loess, prices$t)
 
-plot(prices$t, prices$spot_price_dkk, main="Nonparametric fit", type='l')
+plot(prices$t, prices$spot_price_dkk, 
+     main="Nonparametric trend", ylab="DKK per MWh", xlab="Time", type='l')
 lines(prices$t, prices_trend, col='red', lwd=2)
 
-plot(prices$t, prices$spot_price_dkk - prices_trend, main="Residuals/detrend", type='l')
+plot(prices$t, prices$spot_price_dkk - prices_trend, 
+     main="Detrended data", ylab="DKK per MWh", xlab="Time", type='l')
 
 plot(diff(prices$spot_price_dkk, 1), main="First Differenced", type="l")
 ```
 
 This made us decide on using first differencing to transform our data, to become covariance stationary.
+
+```{r}
+acf(diff(prices$spot_price_dkk, 1), lag.max = 1000, main="First Differenced")
+acf(diff(prices$spot_price_dkk[prices$Hour==17], 1), lag.max = 1000, main="First Differenced Hour 17")
+```
+
 
 # Seasonality
 

@@ -18,16 +18,6 @@ prod <- read.csv("data/prod_clean.csv")
 ```
 
 ```{r}
-prices %>% 
-  filter(price_area == "DK1")  %>% 
-  mutate(date = lubridate::as_datetime(hour_utc)) %>% 
-  mutate(value = round(as.numeric(spot_price_dkk)), digits = 0) %>% 
-  select(date, value)    %>% 
-  drop_na()  %>% 
-  write_csv2('price_final.csv')
-```
-
-```{r}
 prices <- prices %>%
   filter(price_area == "DK1") %>%
   arrange(hour_utc)
@@ -208,7 +198,7 @@ Vi kan se en "top" pr. 7'ende dag, og derfor seasonality på dagsbasis.
 
 ```{r}
 prices_seas <- prices_seas %>%
-  filter(Wday == "Ons")
+  filter(Wday == "Wed")
 
 acf(prices_seas$spot_price_dkk, lag.max=50)
 ```

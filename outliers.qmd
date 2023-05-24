@@ -20,7 +20,7 @@ library(ggfortify)
 
 
 ```{r}
-prices <- read.csv2("data/price_df_clean.csv", sep = ",")
+prices <- read.csv2("data/price_clean.csv", sep = ",")
 prices %>% 
   head()
 ```
