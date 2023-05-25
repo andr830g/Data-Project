@@ -84,7 +84,7 @@ Great focus has been cast on the commodity sector during the period 2021 to pres
 plot(prices$spot_price_dkk, type="l", main="Spot price in DK1", xlab="", ylab="DKK per MWh", xaxt="n")
 axis(side=1, 
      at=c(1, 1682, 6702, 10730, 13404, 18842, 20106, 24098, 26808), 
-     labels=c("2020-01-01", "Lockdown", "2020-10-06", "Evergreen","2021-07-12", "Invasion", "2022-04-17", "CPI peak", "2023-01-21"), 
+     labels=c("2020-01-01", "Lockdown", "2020-10-06", "Ever Given","2021-07-12", "Invasion", "2022-04-17", "CPI peak", "2023-01-21"), 
      las=2, cex.axis=0.85)
 abline(v=1682, col="red", lty=2, lwd=2)
 abline(v=10730, col="red", lty=2, lwd=2)
@@ -92,7 +92,7 @@ abline(v=18842, col="red", lty=2, lwd=2)
 abline(v=24098, col="red", lty=2, lwd=2)
 ```
 
-Above, the electricity spot prices in DK1 are shown for the period 2020-01-01 to 2023-01-21. The red lines indicate the danish lockdown due to COVID-19, 2020-03-11, the Evergreen blockade of the Suez Canal, 2021-03-23, the Russian invasion of Ukraine, 2022-02-24 and the danish peak inflation of 10.1% in October 2022.
+Above, the electricity spot prices in DK1 are shown for the period 2020-01-01 to 2023-01-21. The red lines indicate the danish lockdown due to COVID-19, 2020-03-11, the Ever Given blockade of the Suez Canal, 2021-03-23, the Russian invasion of Ukraine, 2022-02-24 and the danish peak inflation of 10.1% in October 2022.
 
 The data consists of three data sets. The first data set contains electricity spot prices per hour in DKK pr. MWh, over the period 2020-01-01 hour 0 (midnight), to 2023-01-31 hour 23 danish time. The price areas are Denmark east of the Great Belt (DK1), Denmark west of the great belt (DK2), Sweden southern part (SE4), Sweden area surrounding Stockholm (SE3), Norway southern part (NO2), Germany (DE).
 
