@@ -496,7 +496,7 @@ forecast_func <- function(days_ahead, data,
   residuals <- validation_data-forecasts
   RMSE <- sqrt(mean(residuals^2))
   
-  print(c("RMSE:", RMSE))
+  print(paste("RMSE:", as.character(RMSE)))
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
@@ -580,7 +580,7 @@ forecast_func_xreg <- function(days_ahead, data, xogen,
   residuals <- validation_data-forecasts
   RMSE <- sqrt(mean(residuals^2))
   
-  print(c("RMSE:", RMSE))
+  print(paste("RMSE:", as.character(RMSE)))
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),

@@ -386,7 +386,7 @@ The results of these benchmark models can be seen in the Results table in the se
 We then created the function below to generate the day-ahead forecasts using different auto-regressive models such as the ARIMA/SARIMA. The SARIMA(p, d, q)(P, D, Q)(T) is defined as:
 
 $$
-\Delta_d y_t = \sum_{i=1}^{p} \beta_i \Delta_d y_{t-i} + \sum_{j=1}^{q} \gamma_j \Delta_d u_{t-j} + \sum_{k=1}^{P} \zeta_k \Delta_D y_{t-T\cdot k} + \sum_{l=1}^{Q} \Delta_D \eta_l u_{t-T\cdot l} + \Delta_d u_t
+\Delta_d y_t = \sum_{i=1}^{p} \beta_i \Delta_d y_{t-i} + \sum_{j=1}^{q} \gamma_j \Delta_d u_{t-j} + \sum_{k=1}^{P} \zeta_k \Delta_D y_{t-T\cdot k} + \sum_{l=1}^{Q} \eta_l \Delta_D u_{t-T\cdot l} + \Delta_d u_t
 $$
 For time series $y_t$, constants $\beta_i, \gamma_j, \zeta_k, \eta_l$ and residual $u_t$ with mean 0 and variance $\sigma^2$.
 
@@ -435,7 +435,7 @@ forecast_func <- function(days_ahead, data,
   residuals <- validation_data-forecasts
   RMSE <- sqrt(mean(residuals^2))
   
-  print(c("RMSE:", RMSE))
+  print(paste("RMSE:", as.character(RMSE)))
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
@@ -558,7 +558,7 @@ forecast_func_xreg <- function(days_ahead, data, xogen,
   residuals <- validation_data-forecasts
   RMSE <- sqrt(mean(residuals^2))
   
-  print(c("RMSE:", RMSE))
+  print(paste("RMSE:", as.character(RMSE)))
   if(plotbool == T) {
     plot(training_data, type="l", 
          xlim=c(length(training_data)-250, length(data)+10), ylim=c(-500, 4500),
@@ -825,4 +825,4 @@ qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
-We observe that the SARIMA(24,1,1)(7,0,1) model performs exceptionally well on the new test data.
+We observe that the SARIMA(24,1,1)(7,0,1) model performs exceptionally well on the new test data with an RMSE of 175.7 on the first 28 days of the test data and an RMSE of 153.4 on the 59 days of the test data.
