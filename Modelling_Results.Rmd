@@ -1,6 +1,6 @@
 ---
 title: "Modelling Results"
-author: "Andreas Hansen"
+author: "Andreas Hyldegaard Hansen, Andreas Skiby Andersen"
 date: "2023-05-08"
 output: html_document
 ---

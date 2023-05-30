@@ -1,6 +1,6 @@
 ---
 title: "Seasonality"
-author: "Andreas Hansen"
+author: "Andreas Hyldegaard Hansen, Andreas Skiby Andersen"
 date: "2023-02-20"
 output: html_document
 ---

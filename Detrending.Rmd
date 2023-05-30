@@ -1,6 +1,6 @@
 ---
 title: "Detrending"
-author: "Andreas Hansen"
+author: "Andreas Hyldegaard Hansen, Andreas Skiby Andersen"
 date: "2023-03-15"
 output: html_document
 ---
