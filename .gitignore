@@ -3,5 +3,10 @@
 .RData
 .Ruserdata
 .DS_Store
-data/
+consumption.json
+prices.json
+production_dist.json
+Test_data_prices.json
+Test_data_consumption.json
+Test_data_production.json
 presentation_midtvejs.pptx
