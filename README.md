@@ -1,4 +1,4 @@
-# Dataproject
+# Data Project
 Dataproject 4. semester Aarhus University
 
 Andreas Hyldegaard Hansen 202106123,
