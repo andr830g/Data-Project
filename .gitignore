@@ -9,4 +9,6 @@ production_dist.json
 Test_data_prices.json
 Test_data_consumption.json
 Test_data_production.json
+con_clean.csv
+test_con_clean.csv
 presentation_midtvejs.pptx
