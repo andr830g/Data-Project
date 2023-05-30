@@ -3,6 +3,9 @@
 .RData
 .Ruserdata
 .DS_Store
+*.json
+*.pptx
+*.Rproj
 presentation_midtvejs.pptx
 consumption.json
 prices.json
