@@ -3,5 +3,5 @@
 .RData
 .Ruserdata
 .DS_Store
-data/
+.json
 presentation_midtvejs.pptx
