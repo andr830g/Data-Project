@@ -76,7 +76,7 @@ prices["Summer"] <- ifelse(prices$Month %in% c(6, 7, 8), 1, 0)
 prices["Autumn"] <- ifelse(prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-# Introduction
+#. Introduction
 
 Great focus has been cast on the commodity sector during the period 2021 to present day, as the danish society has seen a great rise and large volatility in electricity prices and gas prices. In the period, the electricity spot price has been affected by worldwide consequences of inflation, freight chaos and the Russian-Ukraine war, causing record high prices for the consumers.
 
@@ -102,26 +102,26 @@ The third data set contains data on consumption in kWh from different grid compa
 
 This project is focusing exclusively on spot prices in the price area DK1, which is Denmark, east of the Great belt, and the project will analyze time series data of electricity spot prices, to find ARIMA/SARIMA models, which are better than a naive benchmark model, for forecasting these electricity spot prices.
 
-# Data cleaning
+#. Data cleaning
 
 In this section, we are referring to our work done in data_cleaning.qmd.
 
 We have gathered our raw data from www.energidataservice.dk, where our data was in a .JSON file format.
 
-After reading the data, we made sure that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values, to be useful for analysis. In the "Consumption" data set, we only had 3 variables, but still a lot of missing values. To keep as much information from the "Consumption" data set, we transformed all the missing values to 0's.
+After reading the data, we made sure, that all our variables were read as the correct datatypes, and transformed all missing values into NA values. In the "Production" data set, we also dropped variables from the data set, that had too many missing values, to be useful for analysis. In the "Consumption" data set, we only had three variables, but still a lot of missing values. To keep as much information from the "Consumption" data set as possible, we transformed all the missing values to 0's.
 
-After having cleaned the columns, we then moved on to the rows. We found out that the start and end times of our 3 data sets did not match. All of the data sets had the same first observation regarding time, but the "Consumption" data set, was missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
+After having cleaned the columns, we then went on to the rows. We found that the start and end times of our three data sets did not match. All of the data sets had the same first observation regarding time, but the "Consumption" data set, was missing some observations at the end. Hence, we had to cut off data from the other two data sets, to make them all equal length.
 
-We then had a strange problem, where there were 3 seemingly random observations, that were missing from the "Production" data set. We then had to use interpolation to add the previous observation's values to the missing rows, to fill in the missing observations.
+We then had a strange problem, where there were three seemingly random observations, that were missing from the "Production" data set. We then had to use interpolation to add the previous observation's values to the missing rows, to fill in the missing observations.
 We are aware that this modification of 3 out of 26808 observations can have an impact on the results, but we assume the impact to be rather insignificant, as well as the modification being a necessity for further analysis, due to the nature of time series, and for the models to work as intended.
 
-At last, we also divided the columns in the "Consumption" data set with 1000, since we found out that the electricity used in the "Consumption" data set was in kwh, where we had electricity in Mwh in the other data sets.
+At last, we also divided the columns in the "Consumption" data set with 1000, since we found that the electricity used in the "Consumption" data set was in kwh, where we had electricity in Mwh in the other data sets.
 
 Having the data in a .JSON file format made reading the data very slow, so we decided to save the cleaned data as a .csv file format, which made it much faster to read.
 
 We then followed the same process to create cleaned test data, to measure our model's performance at the end of the report.
 
-# Trend
+#. Trend
 
 In this section, we are referring to our work done in Detrending.Rmd.
 
@@ -159,16 +159,16 @@ adf.test(prices$spot_price_dkk)
 kpss.test(prices$spot_price_dkk)
 ```
 
-We observe that the two tests don't agree. The null hypothesis for the ADF test is "Not stationary", while the null hypothesis for the KPSS test is "Stationary".
+We observe that the two tests do not agree. The null hypothesis for the ADF test is "Not stationary", while the null hypothesis for the KPSS test is "Stationary".
 When observing the ACF plot, we can clearly see that there is high autocorrelation in the data. Hence, we trust the KPSS test here, and conclude that the time series is not covariance stationary.
 
 Next step is then to try to transform the data, so that it becomes stationary. This is a necessity to assure the correctness of the models, we will be using later on (ARIMA/SARIMA).
 
 There are multiple possible methods to try, when having to transform the data to become stationary.
 
-One could be to try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. We tried a logarithmic transformation where the log of negative values are replaced by 0, but this gave many outliers and structural breaks. This can be seen in the data_transformation.Rmd file.
+One method could be to try to take the logarithm on the data, but this does not work in our case, since we in some cases have negative values. We tried a logarithmic transformation where the log of negative values are replaced by 0, but this gave many outliers and structural breaks. This can be seen in the data_transformation.Rmd file.
 
-A different also very common approach is to first difference the data, so that every observation is subtracted from the previous observation.
+A different and also very common approach is to first difference the data, so that every observation is subtracted from the previous observation.
 
 At last, an approach is to try to detrend the data, by fitting a regression to the data to mimic the underlying trend, which afterwards can be subtracted from the data, to remove the fitted trend.
 
@@ -295,7 +295,7 @@ kpss.test(diff(prices$spot_price_dkk, 1))
 
 Looking at the KPSS test, it now says that the time series is almost covariance stationary, but the ACF plot still does not look too good. It is also still significantly less covariance stationary, than just using first differencing.
 
-We also tried using a nonparametric method to fit the underlying trend in the data, but this is of course not a viable solution, since it is nonparametric, and will of course not work for forecasting.
+We also tried using a nonparametric method to fit the underlying trend in the data, but this is of course not a viable solution, since it is nonparametric, and will not work for forecasting.
 
 One thing, we did discover from the nonparametric model, was that when we gave it a span closer to 0, the detrending with the nonparametric model looked more and more similar to a first differencing.
 
@@ -320,9 +320,9 @@ acf(diff(prices$spot_price_dkk, 1), lag.max = 1000, main="First Differenced")
 acf(diff(prices$spot_price_dkk[prices$Hour==17], 1), lag.max = 1000, main="First Differenced Hour 17")
 ```
 
-As we can see, the ACF plots for the first differenced data, show a fast convergence towards insignificant autocorrelation, and this becomes even more obvious when subsetting on a single hour, to account for seasonality.
+As we can see, the ACF plots for the first differenced data show a fast convergence towards insignificant autocorrelation, and this becomes even more obvious when subsetting on a single hour, to account for seasonality.
 
-# Seasonality
+#. Seasonality
 
 In this section, we are referring to our work done in Seasonality.Rmd.
 
@@ -373,15 +373,15 @@ prices %>%
 
 This gives us a much clearer view of the monthly seasonality, and we can confirm what we saw on the previous plot. Hence, the data experiences monthly seasonality.
 
-# Forecasting
+#. Forecasting
 
 In this section and in the section "Results", we are referring to our work done in Modelling.Rmd.
 
 When deciding on a method for forecasting, there is different ways to go about it. In this project, we have decided to forecast the next 24 hours (day-ahead forecasting), without reestimating the model. Day-ahead forecasting would in the real world be enough for a company to make a bid for the upcoming day, and the ARIMA/SARIMA model will also perform better, when it is not trying to forecast far into the future. We decided to not reestimate the model for each day we forecast, since this would then be a very slow process, but instead just keep the estimated coefficients, and give the model the data of the next 24 hours every time, to forecast the next day. We then evaluate the day-ahead forecast on validation data of the last 28 days, using the Root Mean Square Error (RMSE).
 
-First of all, we needed to generate some naive benchmark models, to have some measures to evaluate our different model's performances against. We used a simple linear regression, a sinusoidal regression and the best fitted sum of multiple sinusoidal regressions we found from the section "Trends", to create some very naive benchmark models. We trained the models on the data without the last 28 days, and then used the last 28 days as validation data.
+First, we needed to generate some naive benchmark models, to have some measures to evaluate our different model's performances up against. We used a simple linear regression, a sinusoidal regression and the best fitted sum of multiple sinusoidal regressions we found from the section "Trends", to create some very naive benchmark models. We trained the models on the data without the last 28 days, and then used the last 28 days as validation data.
 
-The results of these benchmark models can be seen in the Results table in the section "Results", where we could observe that the simple linear regression gave the best results.
+The results of these benchmark models is shown in the Results table in the section "Results", where we could observe that the simple linear regression gave the best results.
 
 We then created the function below to generate the day-ahead forecasts using different auto-regressive models such as the ARIMA/SARIMA. The SARIMA(p, d, q)(P, D, Q)(T) is defined as:
 
@@ -460,7 +460,7 @@ We tried to run some of the models, where we fixed many of the coefficients at z
 
 Below is an example on how we ran the function, on what we found to be the best model without exogenous variables.
 
-## SARIMA(24, 1, 1)(7, 0, 1)(24)
+##. SARIMA(24, 1, 1)(7, 0, 1)(24)
 ```{r}
 outputlist <- forecast_func(28, prices$spot_price_dkk,  
                             c(rep(NA, 24)), 1, c(NA), 
@@ -579,7 +579,7 @@ It is worth noting that we didn't evaluate the different combinations of exogeno
 
 Below is an example on how we ran the function, on what we found to be the best model with exogenous variables.
 
-## SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+##. SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
 ```{r}
 xregs <- cbind(prices$Sat, prices$Sun, 
               prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
@@ -618,13 +618,13 @@ To check that the models were not overfitted to the chosen last 28 days of data,
 
 The results of this cross-validation can be seen in the Cross-validation table in the section "Results", where we observed that SARIMA(24,1,1)(7,0,1) model didn't seem to be overfitted, when compared to the simpler ARIMA(24,1,0) model.
 
-# Results
+#. Results
 
 Below, is the results of the different models that have been evaluated. In the Results table, the models have been trained on all the training data except the last 28 days, that have been used as validation data.
 
 In the Cross-validation table, are the results from the models, we ran through cross-validation.
 
-## Results table
+##. Results table
 
 ```{r include=FALSE}
 Result_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE = double(), stringsAsFactors = FALSE)
@@ -673,7 +673,7 @@ kbl(Result_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
-## Cross-validation table
+##. Cross-validation table
 
 ```{r include=FALSE}
 CV_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE_subset_1 = double(), RMSE_subset_2 = double(), RMSE_subset_3 = double(), RMSE_subset_4 = double(), mean_RMSE = double(), sd_RMSE = double(), stringsAsFactors = FALSE)
@@ -691,11 +691,11 @@ kbl(CV_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
-## auto.arima()
+##. auto.arima()
 
 Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted to test our model, against a model that would be suggested by the auto.arima()-function from the library "forecast".
 
-The auto.arima()-function came with very different suggestions of models, depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model as it's initial guess, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
+The auto.arima()-function came with very different suggestions of models, depending on what initial guess was given to the model. Hence, we gave it the initial guess of the best SARIMA(24,1,1)(7,0,1) model, which produced a suggested ARIMA(23,1,0) model for both with and without exogenous variables.
 
 We then tried to use this model for day-ahead forecasting without exogenous variables and saw that it was worse, with an RMSE of 369.8, compared to the RMSE of 344.0 of the SARIMA(24,1,1)(7,0,1) model. When exogenous variables were included, it was instead on pair, with an RMSE of 262.3 compared to the 263.9 of the SARIMA(24,1,1)(7,0,1) model. This can also be seen in the Results table.
 
@@ -703,7 +703,7 @@ We then tried running it through cross-validation, to see if the ARIMA(23,1,0) m
 
 As might have been expected, it looks like the ARIMA(23,1,0) model, suggested by the auto.arima()-function, was lucky to have performed very well on the last 28 days of the data, and generally looks to be worse than the SARIMA(24,1,1)(7,0,1) model, and on pair with the very similar ARIMA(24,1,0) model. Hence, we will conclude that the best performing model from the cross-validation and model validation, was the SARIMA(24,1,1)(7,0,1) model, that we at last test on new test data.
 
-## Test data
+##. Test data
 ```{r include=FALSE}
 test_prices <- read.csv("data/test_price_clean.csv") %>%
   mutate(
@@ -751,7 +751,7 @@ test_prices["Summer"] <- ifelse(test_prices$Month %in% c(6, 7, 8), 1, 0)
 test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-### SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
+###. SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
 
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*28), ])
@@ -788,7 +788,7 @@ qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
-### SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
+###. SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
 
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*59), ])
@@ -826,3 +826,13 @@ qqline(residuals)
 ```
 
 We observe that the SARIMA(24,1,1)(7,0,1) model performs exceptionally well on the new test data with an RMSE of 175.7 on the first 28 days of the test data and an RMSE of 153.4 on the 59 days of the test data.
+
+#. Conclusion
+
+In conclusion, we have in this project managed to find a model, based on analysis of the trends, stationarity and seasonality of the time series, which outperforms naive benchmark models, such as the linear regression and simple autoregressive models.
+
+The model we found to be the most accurate, was the SARIMA(24,1,1)(7,0,1)(24) model. This model's accuracy improved significantly, when we added the best found combination of exogenous variables to the model. We found these to be weekend, wind, fossile, biomass, waste and exchange, as seen in the section "Forecasting".
+
+The model is tested to outperform these models on multiple different sets of data, from the same time series data of the electricity spot prices in DK1, using validation data, crossvalidation and test data, to test for overfitting of the model.
+
+From the time series crossvalidation, we also saw that the model, in general, had a higher accuracy than the auto.arima()-function, for generating automatic hyperparameters for the ARIMA model, based on a given time series.
