@@ -76,7 +76,7 @@ prices["Summer"] <- ifelse(prices$Month %in% c(6, 7, 8), 1, 0)
 prices["Autumn"] <- ifelse(prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-#. Introduction
+# Introduction
 
 Great focus has been cast on the commodity sector during the period 2021 to present day, as the danish society has seen a great rise and large volatility in electricity prices and gas prices. In the period, the electricity spot price has been affected by worldwide consequences of inflation, freight chaos and the Russian-Ukraine war, causing record high prices for the consumers.
 
@@ -102,7 +102,7 @@ The third data set contains data on consumption in kWh from different grid compa
 
 This project is focusing exclusively on spot prices in the price area DK1, which is Denmark, east of the Great belt, and the project will analyze time series data of electricity spot prices, to find ARIMA/SARIMA models, which are better than a naive benchmark model, for forecasting these electricity spot prices.
 
-#. Data cleaning
+# Data cleaning
 
 In this section, we are referring to our work done in data_cleaning.qmd.
 
@@ -121,7 +121,7 @@ Having the data in a .JSON file format made reading the data very slow, so we de
 
 We then followed the same process to create cleaned test data, to measure our model's performance at the end of the report.
 
-#. Trend
+# Trend
 
 In this section, we are referring to our work done in Detrending.Rmd.
 
@@ -322,7 +322,7 @@ acf(diff(prices$spot_price_dkk[prices$Hour==17], 1), lag.max = 1000, main="First
 
 As we can see, the ACF plots for the first differenced data show a fast convergence towards insignificant autocorrelation, and this becomes even more obvious when subsetting on a single hour, to account for seasonality.
 
-#. Seasonality
+# Seasonality
 
 In this section, we are referring to our work done in Seasonality.Rmd.
 
@@ -373,7 +373,7 @@ prices %>%
 
 This gives us a much clearer view of the monthly seasonality, and we can confirm what we saw on the previous plot. Hence, the data experiences monthly seasonality.
 
-#. Forecasting
+# Forecasting
 
 In this section and in the section "Results", we are referring to our work done in Modelling.Rmd.
 
@@ -460,7 +460,7 @@ We tried to run some of the models, where we fixed many of the coefficients at z
 
 Below is an example on how we ran the function, on what we found to be the best model without exogenous variables.
 
-##. SARIMA(24, 1, 1)(7, 0, 1)(24)
+## SARIMA(24, 1, 1)(7, 0, 1)(24)
 ```{r}
 outputlist <- forecast_func(28, prices$spot_price_dkk,  
                             c(rep(NA, 24)), 1, c(NA), 
@@ -579,7 +579,7 @@ It is worth noting that we didn't evaluate the different combinations of exogeno
 
 Below is an example on how we ran the function, on what we found to be the best model with exogenous variables.
 
-##. SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
+## SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange
 ```{r}
 xregs <- cbind(prices$Sat, prices$Sun, 
               prod$fossil_gas, prod$fossil_oil, prod$fossil_hard_coal,
@@ -618,13 +618,13 @@ To check that the models were not overfitted to the chosen last 28 days of data,
 
 The results of this cross-validation can be seen in the Cross-validation table in the section "Results", where we observed that SARIMA(24,1,1)(7,0,1) model didn't seem to be overfitted, when compared to the simpler ARIMA(24,1,0) model.
 
-#. Results
+# Results
 
 Below, is the results of the different models that have been evaluated. In the Results table, the models have been trained on all the training data except the last 28 days, that have been used as validation data.
 
 In the Cross-validation table, are the results from the models, we ran through cross-validation.
 
-##. Results table
+## Results table
 
 ```{r include=FALSE}
 Result_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE = double(), stringsAsFactors = FALSE)
@@ -673,7 +673,7 @@ kbl(Result_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
-##. Cross-validation table
+## Cross-validation table
 
 ```{r include=FALSE}
 CV_table <- data.frame(model = character(), free_arima = character(), seasonal = character(), free_seasonal = character(), xreg = character(), RMSE_subset_1 = double(), RMSE_subset_2 = double(), RMSE_subset_3 = double(), RMSE_subset_4 = double(), mean_RMSE = double(), sd_RMSE = double(), stringsAsFactors = FALSE)
@@ -691,7 +691,7 @@ kbl(CV_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "bordered"), full_width = F, position = "left", font_size = 10)
 ```
 
-##. auto.arima()
+## auto.arima()
 
 Before we ran the best SARIMA(24,1,1)(7,0,1) model on the test data, we wanted to test our model, against a model that would be suggested by the auto.arima()-function from the library "forecast".
 
@@ -703,7 +703,7 @@ We then tried running it through cross-validation, to see if the ARIMA(23,1,0) m
 
 As might have been expected, it looks like the ARIMA(23,1,0) model, suggested by the auto.arima()-function, was lucky to have performed very well on the last 28 days of the data, and generally looks to be worse than the SARIMA(24,1,1)(7,0,1) model, and on pair with the very similar ARIMA(24,1,0) model. Hence, we will conclude that the best performing model from the cross-validation and model validation, was the SARIMA(24,1,1)(7,0,1) model, that we at last test on new test data.
 
-##. Test data
+## Test data
 ```{r include=FALSE}
 test_prices <- read.csv("data/test_price_clean.csv") %>%
   mutate(
@@ -751,7 +751,7 @@ test_prices["Summer"] <- ifelse(test_prices$Month %in% c(6, 7, 8), 1, 0)
 test_prices["Autumn"] <- ifelse(test_prices$Month %in% c(9, 10, 11), 1, 0)
 ```
 
-###. SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
+### SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 28 days of test data
 
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*28), ])
@@ -788,7 +788,7 @@ qqnorm(residuals, main = "Normal Q-Q Plot of residuals")
 qqline(residuals)
 ```
 
-###. SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
+### SARIMA(24, 1, 1)(7, 0, 1)(24) + weekend + wind + fossile + biomass + waste + exchange on 59 days of test data
 
 ```{r}
 full_prices <- rbind(prices, test_prices[1:(24*59), ])
@@ -827,7 +827,7 @@ qqline(residuals)
 
 We observe that the SARIMA(24,1,1)(7,0,1) model performs exceptionally well on the new test data with an RMSE of 175.7 on the first 28 days of the test data and an RMSE of 153.4 on the 59 days of the test data.
 
-#. Conclusion
+# Conclusion
 
 In conclusion, we have in this project managed to find a model, based on analysis of the trends, stationarity and seasonality of the time series, which outperforms naive benchmark models, such as the linear regression and simple autoregressive models.
 
